@@ -27,6 +27,7 @@ import tempfile
 import wave
 import uuid
 import re
+from typing import cast
 
 # Constants
 RECORD_SAMPLE_RATE = 16000
@@ -551,46 +552,57 @@ Search Terms: {product_name} {category} {description}
             
     def process_query(self, query):
         """Process user query and generate response"""
+        print(f"\n[DEBUG] Processing query: '{query}'")
         if not self.llm:
             return "Sorry, the AI model is not available."
 
         # Prioritize checkout flow if it has started
         if self.checkout_state:
+            print(f"[DEBUG] Checkout state is '{self.checkout_state}'. Routing to handle_checkout_interaction.")
             return self.handle_checkout_interaction(query)
             
         # Handle user authentication
         if "login" in query.lower() or "sign in" in query.lower():
+            print("[DEBUG] Intent: handle_login")
             return self.handle_login(query)
             
         # Handle order status queries
         if any(keyword in query.lower() for keyword in ["order status", "where is my order", "track order", "order tracking"]):
+            print("[DEBUG] Intent: handle_order_status")
             return self.handle_order_status(query)
             
         # Handle replacement/refund status
         if any(keyword in query.lower() for keyword in ["refund", "replacement", "return", "refund status", "replacement status"]):
+            print("[DEBUG] Intent: handle_refund_replacement_status")
             return self.handle_refund_replacement_status(query)
             
         # Handle product recommendations
         if any(keyword in query.lower() for keyword in ["recommend", "recommendation", "suggest", "what should I buy", "what do you recommend"]):
+            print("[DEBUG] Intent: handle_product_recommendations")
             return self.handle_product_recommendations(query)
             
         # Handle checkout process - broader keywords
         checkout_keywords = ["checkout", "place order", "place my order", "buy now", "please my order", "order from my cart"]
         if any(keyword in query.lower() for keyword in checkout_keywords):
+            print("[DEBUG] Intent: handle_checkout")
             return self.handle_checkout(query)
             
         # Handle cart operations
         # Handle mis-transcriptions of "cart" as "card"
         if "add" in query.lower() and ("cart" in query.lower() or "card" in query.lower()):
+            print("[DEBUG] Intent: handle_add_to_cart")
             return self.handle_add_to_cart(query)
             
         if "remove" in query.lower() and "cart" in query.lower():
+            print("[DEBUG] Intent: handle_remove_from_cart")
             return self.handle_remove_from_cart(query)
             
         if "show cart" in query.lower() or "my cart" in query.lower():
+            print("[DEBUG] Intent: handle_show_cart")
             return self.handle_show_cart(query)
             
         # Search for products
+        print("[DEBUG] Intent: General product search")
         products = self.search_products(query)
         
         # Format available products (IN STOCK)
@@ -837,6 +849,8 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         cart_info = self.get_cart_contents()
         cart_total = self.get_cart_total()
         
+        print(f"[DEBUG] Starting checkout. State -> {self.checkout_state}. Cart total: ₹{cart_total:,.2f}")
+        
         response = f"Let's get your order placed. {cart_info}\n"
         response += f"The total amount is ₹{cart_total:,.2f}. "
         response += "Are you sure you want to proceed? Please say 'yes' to continue."
@@ -846,13 +860,16 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
     def handle_checkout_interaction(self, query):
         """Manages the step-by-step checkout process based on the current state."""
         state = self.checkout_state
+        print(f"[DEBUG] Handling checkout interaction. Current state: {state}, Query: '{query}'")
         
         if state == "confirm_order":
             if 'yes' in query.lower():
                 self.checkout_state = "awaiting_address"
+                print(f"[DEBUG] Checkout state updated: {self.checkout_state}")
                 return self.prompt_for_address()
             else:
                 self.checkout_state = None
+                print("[DEBUG] Checkout cancelled by user.")
                 return "Checkout cancelled. Let me know if there's anything else I can help with."
 
         elif state == "awaiting_address":
@@ -863,6 +880,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
 
         else:
             self.checkout_state = None
+            print(f"[DEBUG] Unknown checkout state '{state}'. Resetting.")
             return "There was an issue with the checkout process. Let's start over. How can I help?"
 
     def prompt_for_address(self):
@@ -888,6 +906,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         if not self.current_user:
             return "Error: User not logged in."
         addresses = self.current_user.get('addresses', [])
+        print(f"[DEBUG] Handling address selection. Found {len(addresses)} addresses.")
         
         try:
             match = re.search(r'\d+', query)
@@ -898,6 +917,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             if addresses and 0 <= choice < len(addresses):
                 self.checkout_data['address'] = addresses[choice]
                 self.checkout_state = "awaiting_payment"
+                print(f"[DEBUG] Address selected: {self.checkout_data['address']}. State -> {self.checkout_state}")
                 return self.prompt_for_payment()
             else:
                 return "That's not a valid choice. Please select a number from the list. " + self.prompt_for_address()
@@ -905,6 +925,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             if 'cancel' in query.lower():
                 self.checkout_state = None
                 self.checkout_data = {}
+                print("[DEBUG] Checkout cancelled. State has been reset.")
                 return "Checkout cancelled."
             return "I didn't understand that. Please say the number of the address you'd like to use. " + self.prompt_for_address()
     
@@ -932,6 +953,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         if not self.current_user:
             return "Error: User not logged in."
         payments = self.current_user.get('payment_methods', [])
+        print(f"[DEBUG] Handling payment selection. Found {len(payments)} methods.")
 
         try:
             match = re.search(r'\d+', query)
@@ -940,6 +962,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             choice = int(match.group()) - 1
             if payments and 0 <= choice < len(payments):
                 self.checkout_data['payment'] = payments[choice]
+                print(f"[DEBUG] Payment selected: {self.checkout_data['payment']}. Placing order...")
                 
                 # All data collected, place the order
                 address_str = f"{self.checkout_data['address']['street']}, {self.checkout_data['address']['city']}"
@@ -950,6 +973,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                 # Clear checkout state
                 self.checkout_state = None
                 self.checkout_data = {}
+                print("[DEBUG] Order placed. Checkout state has been reset.")
                 return response
             else:
                 return "That's not a valid choice. Please try again. " + self.prompt_for_payment()
@@ -957,6 +981,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             if 'cancel' in query.lower():
                 self.checkout_state = None
                 self.checkout_data = {}
+                print("[DEBUG] Checkout cancelled. State has been reset.")
                 return "Checkout cancelled."
             return "I didn't get that. Please say the number for your payment choice. " + self.prompt_for_payment()
 
@@ -1044,11 +1069,11 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             # Try to find an order ID in the query
             import re
             match = re.search(r'ORD-[A-F0-9]{8}', query.upper())
-            target_order = None
+            target_order: pd.DataFrame | None = None
 
             if match:
                 order_id = match.group(0)
-                order_details = user_orders[user_orders['order_id'] == order_id]
+                order_details = cast(pd.DataFrame, user_orders[user_orders['order_id'] == order_id])
                 if not order_details.empty:
                     target_order = order_details
                     response = f"Here is the status for order {order_id}:\n"
@@ -1056,16 +1081,16 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                     return f"I could not find an order with the ID {order_id} for your account."
             else:
                 # If no ID is specified, get the latest order
-                latest_order_id = user_orders['order_id'].iloc[-1]
-                target_order = user_orders[user_orders['order_id'] == latest_order_id]
+                latest_order_id = cast(pd.Series, user_orders['order_id']).iloc[-1]
+                target_order = cast(pd.DataFrame, user_orders[user_orders['order_id'] == latest_order_id])
                 response = f"Here is the status for your latest order ({latest_order_id}):\n"
 
             if target_order is None or target_order.empty:
                 return "Could not find the specified order."
 
             # Aggregate products for the response
-            delivery_status = target_order['delivery_status'].iloc[0]
-            total_amount = (target_order['price_inr'] * target_order['quantity']).sum()
+            delivery_status = cast(pd.Series, target_order['delivery_status']).iloc[0]
+            total_amount = (cast(pd.Series, target_order['price_inr']) * cast(pd.Series, target_order['quantity'])).sum()
 
             response += f"Status: {delivery_status}\n"
             response += f"Total: ₹{total_amount:,.2f}\n"
@@ -1101,15 +1126,15 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
 
             if match:
                 order_id = match.group(0)
-                if order_id in user_orders['order_id'].values:
+                if order_id in cast(pd.Series, user_orders['order_id']).values:
                     target_order_id = order_id
                 else:
                     return f"I could not find an order with the ID {order_id} for your account."
             else:
                 # If no ID is specified, use the latest order
-                target_order_id = user_orders['order_id'].iloc[-1]
+                target_order_id = cast(pd.Series, user_orders['order_id']).iloc[-1]
 
-            order_details_row = user_orders[user_orders['order_id'] == target_order_id]
+            order_details_row = cast(pd.DataFrame, user_orders[user_orders['order_id'] == target_order_id])
             if order_details_row.empty:
                 return f"Could not find details for order {target_order_id}."
 
