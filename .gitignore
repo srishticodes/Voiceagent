@@ -113,3 +113,4 @@ dmypy.json
 
 # Ollama models (if any)
 .ollama/ 
+.cursorrules

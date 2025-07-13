@@ -35,6 +35,7 @@ CHUNK_SIZE = 1024
 # Mock user data
 MOCK_USERS = {
     "U001": {
+        "user_id": "U001",
         "name": "John Doe",
         "email": "john.doe@email.com",
         "phone": "+1-555-0123",
@@ -73,6 +74,7 @@ MOCK_USERS = {
         ]
     },
     "U002": {
+        "user_id": "U002",
         "name": "Jane Smith",
         "email": "jane.smith@email.com", 
         "phone": "+1-555-0456",
@@ -698,14 +700,14 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             "price": float(price),
             "quantity": 1,
             "added_at": datetime.now().isoformat(),
-            "user_id": self.user_session.get("customer_id")
+            "user_id": self.current_user['user_id']
         }
         
         self.cart.append(item)
         self.cart_history.append({"action": "add", "item": item, "timestamp": datetime.now()})
         
         # Save to CSV
-        self.save_user_cart(self.user_session.get("customer_id"), self.cart)
+        self.save_user_cart(self.current_user['user_id'], self.cart)
         
         print(f"DEBUG: Added to cart - {item['name']} (₹{item['price']})")
         print(f"DEBUG: Cart now has {len(self.cart)} items")
@@ -725,7 +727,8 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                     self.cart_history.append({"action": "remove", "item": removed_item, "timestamp": datetime.now()})
                     
                     # Save to CSV
-                    self.save_user_cart(self.user_session.get("customer_id"), self.cart)
+                    if self.current_user:
+                        self.save_user_cart(self.current_user['user_id'], self.cart)
                     
                     return f"Removed {removed_item['name']} from your cart. Your cart now has {len(self.cart)} items."
             return "Item not found in cart."
@@ -735,7 +738,8 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             self.cart_history.append({"action": "remove", "item": removed_item, "timestamp": datetime.now()})
             
             # Save to CSV
-            self.save_user_cart(self.user_session.get("customer_id"), self.cart)
+            if self.current_user:
+                self.save_user_cart(self.current_user['user_id'], self.cart)
             
             return f"Removed {removed_item['name']} from your cart. Your cart now has {len(self.cart)} items."
         
@@ -764,7 +768,8 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         self.cart_history.append({"action": "clear", "timestamp": datetime.now()})
         
         # Save to CSV
-        self.save_user_cart(self.user_session.get("customer_id"), self.cart)
+        if self.current_user:
+            self.save_user_cart(self.current_user['user_id'], self.cart)
         
         return "Cart cleared"
         
@@ -1032,13 +1037,13 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             recommendations = []
             
             if any(keyword in query.lower() for keyword in ["electronics", "phone", "headphone", "laptop"]):
-                electronics = inventory_df[inventory_df['category'].str.contains('Electronics', case=False, na=False)]
+                electronics = inventory_df[inventory_df['product_category'].str.contains('Electronics', case=False, na=False)]
                 recommendations = electronics.head(3)
             elif any(keyword in query.lower() for keyword in ["clothing", "shirt", "pants", "dress", "fashion"]):
-                clothing = inventory_df[inventory_df['category'].str.contains('Clothing', case=False, na=False)]
+                clothing = inventory_df[inventory_df['product_category'].str.contains('Clothing', case=False, na=False)]
                 recommendations = clothing.head(3)
             elif any(keyword in query.lower() for keyword in ["home", "kitchen", "furniture"]):
-                home = inventory_df[inventory_df['category'].str.contains('Home', case=False, na=False)]
+                home = inventory_df[inventory_df['product_category'].str.contains('Kitchen', case=False, na=False)]
                 recommendations = home.head(3)
             else:
                 # General recommendations - top products by price (assuming higher price = better quality)
@@ -1052,7 +1057,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             
             for idx, product in recommendations.iterrows():
                 response += f"• {product['product_name']} - ₹{product['price_inr']:,}\n"
-                response += f"  Category: {product['category']}\n"
+                response += f"  Category: {product['product_category']}\n"
                 response += f"  Stock: {product['stock_quantity']} available\n\n"
                 
             response += "Would you like me to add any of these items to your cart? "
