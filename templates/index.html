@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walmart Voice Assistant</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .assistant-message {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+            position: relative;
+        }
+
+        .assistant-message .voice-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .voice-controls button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        .voice-controls button:hover {
+            background: #ddd;
+        }
+
+        .voice-controls button.speaking {
+            color: #007bff;
+            animation: pulse 1s infinite;
+        }
+
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .text-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .text-input:focus {
+            border-color: #007bff;
+        }
+
+        .voice-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+        .voice-btn.recording {
+            background: #28a745;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .voice-settings {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .voice-settings h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .voice-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .cart-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .cart-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .cart-count {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .cart-items {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+
+        .cart-total {
+            font-weight: bold;
+            text-align: right;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .clear-cart-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .clear-cart-btn:hover {
+            background: #c82333;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.speaking {
+            background-color: #28a745;
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.idle {
+            background-color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .chat-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-shopping-cart"></i> Walmart Voice Assistant</h1>
+            <p>Your AI-powered shopping companion with voice capabilities</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="voice-settings">
+                <h3><i class="fas fa-volume-up"></i> Voice Settings</h3>
+                <div class="voice-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="voiceOutputToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span>Voice Output</span>
+                    <span class="status-indicator idle" id="voiceStatus"></span>
+                </div>
+                <button id="stopSpeakingBtn" class="clear-cart-btn" style="margin-top: 5px;" onclick="stopSpeaking()">
+                    <i class="fas fa-stop"></i> Stop Speaking
+                </button>
+            </div>
+
+            <div class="chat-container" id="chatContainer">
+                <div class="message assistant-message">
+                    <div class="voice-controls">
+                        <button onclick="speakMessage(this, 'Hello! I\'m your Walmart shopping assistant. I can help you find products, get recommendations, and manage your shopping cart. How can I assist you today?')">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                    Hello! I'm your Walmart shopping assistant. I can help you find products, get recommendations, and manage your shopping cart. How can I assist you today?
+                </div>
+            </div>
+            
+            <div class="input-section">
+                <input type="text" id="messageInput" class="text-input" placeholder="Type your message here..." onkeypress="handleKeyPress(event)">
+                <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceRecording()">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+            
+            <div class="cart-section">
+                <div class="cart-header">
+                    <span class="cart-title">Shopping Cart</span>
+                    <span class="cart-count" id="cartCount">0</span>
+                </div>
+                <div class="cart-items" id="cartItems">
+                    <div style="text-align: center; color: #666; font-style: italic;">
+                        Your cart is empty
+                    </div>
+                </div>
+                <div class="cart-total" id="cartTotal">
+                    Total: $0.00
+                </div>
+                <button class="clear-cart-btn" onclick="clearCart()">Clear Cart</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let voiceOutputEnabled = true;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCart();
+            setupVoiceToggle();
+        });
+
+        function setupVoiceToggle() {
+            const toggle = document.getElementById('voiceOutputToggle');
+            toggle.addEventListener('change', function() {
+                voiceOutputEnabled = this.checked;
+                console.log('Voice output:', voiceOutputEnabled ? 'enabled' : 'disabled');
+            });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // Show loading message
+            const loadingId = addMessage('Thinking...', 'assistant', 'loading');
+            
+            // Send to backend
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    message: message,
+                    speak: voiceOutputEnabled 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                removeMessage(loadingId);
+                
+                if (data.error) {
+                    addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                } else {
+                    addMessage(data.response, 'assistant');
+                    updateCart();
+                }
+            })
+            .catch(error => {
+                removeMessage(loadingId);
+                addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                console.error('Error:', error);
+            });
+        }
+
+        function addMessage(text, sender, className = '') {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            const messageId = 'msg-' + Date.now();
+            
+            messageDiv.id = messageId;
+            messageDiv.className = `message ${sender}-message ${className}`;
+            
+            if (sender === 'assistant') {
+                messageDiv.innerHTML = `
+                    <div class="voice-controls">
+                        <button onclick="speakMessage(this, '${text.replace(/'/g, "\\'")}')">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                    ${text}
+                `;
+            } else {
+                messageDiv.textContent = text;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return messageId;
+        }
+
+        function removeMessage(messageId) {
+            const message = document.getElementById(messageId);
+            if (message) {
+                message.remove();
+            }
+        }
+
+        function speakMessage(button, text) {
+            if (!voiceOutputEnabled) return;
+            
+            // Update button state
+            button.innerHTML = '<i class="fas fa-volume-mute"></i>';
+            button.classList.add('speaking');
+            
+            // Update status indicator
+            const statusIndicator = document.getElementById('voiceStatus');
+            statusIndicator.className = 'status-indicator speaking';
+            
+            // Send to backend for speech
+            fetch('/api/speak', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Speech error:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Speech error:', error);
+            })
+            .finally(() => {
+                // Reset button after a delay
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    button.classList.remove('speaking');
+                    statusIndicator.className = 'status-indicator idle';
+                }, 2000);
+            });
+        }
+
+        function stopSpeaking() {
+            fetch('/api/speak/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Speech stopped');
+                const statusIndicator = document.getElementById('voiceStatus');
+                statusIndicator.className = 'status-indicator idle';
+            })
+            .catch(error => {
+                console.error('Error stopping speech:', error);
+            });
+        }
+
+        function updateCart() {
+            fetch('/api/cart')
+            .then(response => response.json())
+            .then(data => {
+                const cartCount = document.getElementById('cartCount');
+                const cartItems = document.getElementById('cartItems');
+                const cartTotal = document.getElementById('cartTotal');
+                
+                cartCount.textContent = data.count;
+                cartTotal.textContent = `Total: $${data.total.toFixed(2)}`;
+                
+                if (data.cart.length === 0) {
+                    cartItems.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;">Your cart is empty</div>';
+                } else {
+                    cartItems.innerHTML = data.cart.map(item => `
+                        <div class="cart-item">
+                            <span>${item.name}</span>
+                            <span>$${item.price}</span>
+                        </div>
+                    `).join('');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating cart:', error);
+            });
+        }
+
+        function clearCart() {
+            fetch('/api/cart/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateCart();
+                addMessage('Your cart has been cleared.', 'assistant');
+            })
+            .catch(error => {
+                console.error('Error clearing cart:', error);
+            });
+        }
+
+        async function toggleVoiceRecording() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        await sendVoiceMessage(audioBlob);
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    voiceBtn.classList.add('recording');
+                    voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
+                    
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    addMessage('Sorry, I couldn\'t access your microphone. Please check your permissions.', 'assistant');
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            }
+        }
+
+        async function sendVoiceMessage(audioBlob) {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'voice_input.wav');
+            
+            try {
+                const response = await fetch('/api/voice', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage('Sorry, I couldn\'t understand your voice input. Please try again.', 'assistant');
+                } else {
+                    addMessage(data.query, 'user');
+                    addMessage(data.response, 'assistant');
+                    updateCart();
+                }
+            } catch (error) {
+                console.error('Error sending voice message:', error);
+                addMessage('Sorry, there was an error processing your voice input.', 'assistant');
+            }
+        }
+    </script>
+</body>
+</html> 
