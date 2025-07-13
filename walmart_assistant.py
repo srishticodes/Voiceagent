@@ -26,79 +26,15 @@ import pygame
 import tempfile
 import wave
 import uuid
+import re
 
 # Constants
 RECORD_SAMPLE_RATE = 16000
 TTS_SAMPLE_RATE = 24000
 CHUNK_SIZE = 1024
 
-# Mock user data
-MOCK_USERS = {
-    "U001": {
-        "user_id": "U001",
-        "name": "John Doe",
-        "email": "john.doe@email.com",
-        "phone": "+1-555-0123",
-        "addresses": [
-            {
-                "id": "A001",
-                "type": "Home",
-                "street": "123 Main Street",
-                "city": "New York",
-                "state": "NY",
-                "zipcode": "10001",
-                "country": "USA"
-            },
-            {
-                "id": "A002", 
-                "type": "Work",
-                "street": "456 Business Ave",
-                "city": "New York", 
-                "state": "NY",
-                "zipcode": "10002",
-                "country": "USA"
-            }
-        ],
-        "payment_methods": [
-            {
-                "id": "P001",
-                "type": "Credit Card",
-                "last4": "1234",
-                "expiry": "12/25"
-            },
-            {
-                "id": "P002",
-                "type": "PayPal",
-                "email": "john.doe@email.com"
-            }
-        ]
-    },
-    "U002": {
-        "user_id": "U002",
-        "name": "Jane Smith",
-        "email": "jane.smith@email.com", 
-        "phone": "+1-555-0456",
-        "addresses": [
-            {
-                "id": "A003",
-                "type": "Home",
-                "street": "789 Oak Drive",
-                "city": "Los Angeles",
-                "state": "CA", 
-                "zipcode": "90210",
-                "country": "USA"
-            }
-        ],
-        "payment_methods": [
-            {
-                "id": "P003",
-                "type": "Credit Card",
-                "last4": "5678",
-                "expiry": "06/26"
-            }
-        ]
-    }
-}
+# Mock user data is now replaced by CSV files
+# users.csv, user_addresses.csv, user_payment_methods.csv
 
 class VoiceManager:
     """Voice management with real-time capabilities"""
@@ -232,6 +168,7 @@ class WalmartAssistant:
         self.voice_manager = VoiceManager()
         self.current_user = None
         self.checkout_state = None
+        self.checkout_data: dict = {}
         
     def setup_models(self):
         """Initialize AI models"""
@@ -266,9 +203,11 @@ class WalmartAssistant:
             inventory_file = "walmart_inventory.csv"
             if not os.path.exists(inventory_file):
                 print(f"Inventory file not found: {inventory_file}")
+                self.retriever = None
                 return
                 
-            df = pd.read_csv(inventory_file)
+            # Read CSV with proper quoting to handle commas in descriptions
+            df = pd.read_csv(inventory_file, quoting=1)  # QUOTE_ALL
             print(f"Loaded {len(df)} products from inventory")
             
             # Filter only in-stock items for search
@@ -277,9 +216,11 @@ class WalmartAssistant:
             
         except FileNotFoundError:
             print("Inventory CSV file not found. Please ensure 'walmart_inventory.csv' exists.")
+            self.retriever = None
             return
         except Exception as e:
             print(f"Error loading inventory: {e}")
+            self.retriever = None
             return
         
         # Create vector database
@@ -344,6 +285,7 @@ Search Terms: {product_name} {category} {description}
             
         # Create retriever
         self.retriever = self.vector_store.as_retriever(search_kwargs={"k": 5})
+        print("Retriever initialized successfully")
         
     def load_user_cart(self, user_id):
         """Load user's cart from CSV"""
@@ -352,10 +294,14 @@ Search Terms: {product_name} {category} {description}
                 return []
                 
             df = pd.read_csv("user_carts.csv")
-            user_cart = df[(df['user_id'] == user_id) & (df['status'] == 'active')]
+            # Check if 'status' column exists, if not create empty cart
+            if 'status' not in df.columns:
+                df['status'] = 'active'
+                
+            user_cart_df = df[(df['user_id'] == user_id) & (df['status'] == 'active')]
             
             cart_items = []
-            for _, row in user_cart.iterrows():
+            for _, row in user_cart_df.iterrows():
                 item = {
                     "id": row['cart_id'],
                     "product_id": row['product_id'],
@@ -375,39 +321,49 @@ Search Terms: {product_name} {category} {description}
     def save_user_cart(self, user_id, cart_items):
         """Save user's cart to CSV"""
         try:
-            # Load existing carts
-            if os.path.exists("user_carts.csv"):
-                df = pd.read_csv("user_carts.csv")
-            else:
-                df = pd.DataFrame({
-                    'cart_id': [],
-                    'user_id': [],
-                    'product_id': [],
-                    'product_name': [],
-                    'price_inr': [],
-                    'quantity': [],
-                    'added_at': [],
-                    'status': []
-                })
+            cart_file = "user_carts.csv"
             
+            # Define columns to ensure consistency
+            cart_columns = [
+                'cart_id', 'user_id', 'product_id', 'product_name', 
+                'price_inr', 'quantity', 'added_at', 'status'
+            ]
+
+            # Load existing carts or create a new DataFrame
+            if os.path.exists(cart_file):
+                df = pd.read_csv(cart_file)
+            else:
+                df = pd.DataFrame(columns=cart_columns)
+
+            # Ensure all columns are present
+            for col in cart_columns:
+                if col not in df.columns:
+                    df[col] = None
+
             # Remove old active items for this user
             df = df[~((df['user_id'] == user_id) & (df['status'] == 'active'))]
             
-            # Add new cart items
+            # Add new cart items from the current session
+            new_rows = []
             for item in cart_items:
                 new_row = {
-                    'cart_id': f"CART{user_id}",
+                    'cart_id': item.get('id', f"CART-{uuid.uuid4().hex[:8]}"),
                     'user_id': user_id,
                     'product_id': item['product_id'],
                     'product_name': item['name'],
                     'price_inr': item['price'],
                     'quantity': item['quantity'],
-                    'added_at': item['added_at'],
+                    'added_at': item.get('added_at', datetime.now().isoformat()),
                     'status': 'active'
                 }
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                new_rows.append(new_row)
+
+            if new_rows:
+                new_rows_df = pd.DataFrame(new_rows)
+                df = pd.concat([df, new_rows_df], ignore_index=True)
             
-            df.to_csv("user_carts.csv", index=False)
+            # Save the updated DataFrame
+            df.to_csv(cart_file, index=False)
             
         except Exception as e:
             print(f"Error saving user cart: {e}")
@@ -419,17 +375,38 @@ Search Terms: {product_name} {category} {description}
         self.cart_history = []
         
     def authenticate_user(self, user_id):
-        """Authenticate user and load their cart"""
-        if user_id in MOCK_USERS:
-            self.current_user = MOCK_USERS[user_id]
+        """Authenticate user and load their cart and data from CSV files."""
+        try:
+            users_df = pd.read_csv("users.csv")
+            user_series = users_df[users_df['user_id'] == user_id]
+
+            if user_series.empty:
+                return False
+
+            self.current_user = user_series.to_dict('records')[0]
+            
+            # Load addresses
+            addresses_df = pd.read_csv("user_addresses.csv")
+            self.current_user['addresses'] = addresses_df[addresses_df['user_id'] == user_id].to_dict('records')
+
+            # Load payment methods
+            payments_df = pd.read_csv("user_payment_methods.csv")
+            self.current_user['payment_methods'] = payments_df[payments_df['user_id'] == user_id].to_dict('records')
+
             self.user_session["customer_id"] = user_id
             
             # Load user's existing cart
             self.cart = self.load_user_cart(user_id)
-            print(f"Loaded {len(self.cart)} items from user's cart")
+            if self.current_user:
+                print(f"Loaded {len(self.cart)} items from user's cart for {self.current_user.get('name')}")
             
             return True
-        return False
+        except FileNotFoundError as e:
+            print(f"Error: {e}. Make sure users.csv, user_addresses.csv, and user_payment_methods.csv exist.")
+            return False
+        except Exception as e:
+            print(f"An error occurred during authentication: {e}")
+            return False
         
     def get_user_info(self):
         """Get current user information"""
@@ -521,11 +498,12 @@ Search Terms: {product_name} {category} {description}
                 try:
                     print(f"Transcription attempt {attempt + 1}...")
                     
-                    # Use Whisper's transcribe method with audio array
+                    # Use Whisper's transcribe method with audio array, explicitly disabling FP16 on CPU
                     result = self.stt_model.transcribe(
                         audio_float,
                         language="en",
-                        task="transcribe"
+                        task="transcribe",
+                        fp16=False
                     )
                     
                     if result and "text" in result:
@@ -562,6 +540,8 @@ Search Terms: {product_name} {category} {description}
             
     def search_products(self, query):
         """Search for products"""
+        if not self.retriever:
+            return []
         try:
             results = self.retriever.invoke(query)
             return results
@@ -573,6 +553,10 @@ Search Terms: {product_name} {category} {description}
         """Process user query and generate response"""
         if not self.llm:
             return "Sorry, the AI model is not available."
+
+        # Prioritize checkout flow if it has started
+        if self.checkout_state:
+            return self.handle_checkout_interaction(query)
             
         # Handle user authentication
         if "login" in query.lower() or "sign in" in query.lower():
@@ -590,17 +574,15 @@ Search Terms: {product_name} {category} {description}
         if any(keyword in query.lower() for keyword in ["recommend", "recommendation", "suggest", "what should I buy", "what do you recommend"]):
             return self.handle_product_recommendations(query)
             
-        # Handle checkout process
-        if "checkout" in query.lower() or "place order" in query.lower():
+        # Handle checkout process - broader keywords
+        checkout_keywords = ["checkout", "place order", "place my order", "buy now", "please my order", "order from my cart"]
+        if any(keyword in query.lower() for keyword in checkout_keywords):
             return self.handle_checkout(query)
             
         # Handle cart operations
-        if "add" in query.lower() and "cart" in query.lower():
+        # Handle mis-transcriptions of "cart" as "card"
+        if "add" in query.lower() and ("cart" in query.lower() or "card" in query.lower()):
             return self.handle_add_to_cart(query)
-            
-        # Handle cart confirmation
-        if any(keyword in query.lower() for keyword in ["yes", "add it", "add to cart", "confirm"]):
-            return self.handle_cart_confirmation(query)
             
         if "remove" in query.lower() and "cart" in query.lower():
             return self.handle_remove_from_cart(query)
@@ -613,7 +595,7 @@ Search Terms: {product_name} {category} {description}
         
         # Format available products (IN STOCK)
         products_text = ""
-        if products:
+        if products and len(products) > 0:
             if hasattr(products, '__iter__'):
                 products_text = "Available products in stock:\n" + "\n".join([doc.page_content for doc in products])
             else:
@@ -637,15 +619,23 @@ Search Terms: {product_name} {category} {description}
         # Enhanced prompt for better voice responses with explicit separation
         template = """
 You are a helpful Walmart shopping assistant with a friendly, conversational voice. 
-Help customers find products and manage their cart. Speak naturally and clearly.
+Help customers find products, manage their cart, and track orders. Speak naturally and clearly.
 
 CRITICAL RULES - NEVER BREAK THESE:
-1. INVENTORY = Available products in stock that customers can buy
-2. CART = Items the user has personally added to their shopping cart
-3. NEVER mention cart items unless they are actually in the user's cart
-4. NEVER confuse inventory items with cart items
-5. ONLY recommend products from inventory
-6. ONLY mention cart items that exist in the user's personal cart
+1.  **INVENTORY vs. CART**: The INVENTORY is all available products. The CART is ONLY what the user has personally selected. Do not confuse them.
+2.  **BE FACTUAL**: NEVER invent or "hallucinate" products, prices, order details, or eligibility statuses. If you don't know or can't find the information, say so clearly (e.g., "I could not find an order with that ID.").
+3.  **USE YOUR TOOLS**: Rely on the functions provided to get information. Do not make up answers.
+4.  **CURRENCY**: ALL prices must be in Indian Rupees (INR) and formatted with the '₹' symbol (e.g., ₹1,299).
+5.  **CART CONTENTS**: When asked about the cart, only list items from the "USER'S PERSONAL CART" section. Do not mention inventory items.
+6.  **PRODUCT RECOMMENDATIONS**: Only recommend products listed in the "AVAILABLE INVENTORY" section.
+7.  **NO MARKDOWN**: Do not use any formatting like asterisks (*), dashes (-), or other markdown. Write responses in plain, natural sentences.
+
+Here are your primary capabilities:
+- **Search for products**: Find items in the inventory.
+- **Manage Cart**: Add or remove items from the user's personal cart.
+- **Checkout**: Place an order from the user's cart.
+- **Check Order Status**: Provide updates on past orders using an Order ID.
+- **Check Return/Refund Eligibility**: Inform the user if an order is within the 15-day return window.
 
 Current user: {user_info}
 AVAILABLE INVENTORY (In Stock Products): {products}
@@ -654,12 +644,12 @@ USER'S PERSONAL CART: {cart}
 User query: {query}
 
 Provide a helpful, conversational response that sounds natural when spoken aloud.
-- If products are found in inventory, mention them clearly with prices
-- If the user wants to add items to cart, confirm the action clearly
+- If a user asks a question about a product, search the inventory and state what you find. Do not ask to add it to the cart.
 - ONLY mention cart items that actually exist in the user's personal cart above
-- NEVER invent or hallucinate cart contents
+- NEVER invent or hallucinate cart contents or order details.
 - Keep responses concise but informative
-- Use natural speech patterns
+- Use natural speech patterns and avoid any markdown formatting like asterisks.
+- Your entire response should be a single paragraph of conversational text. Do not use lists.
         """
         
         user_info = f"Logged in as {self.current_user['name']}" if self.current_user else "Not logged in"
@@ -712,8 +702,6 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         print(f"DEBUG: Added to cart - {item['name']} (₹{item['price']})")
         print(f"DEBUG: Cart now has {len(self.cart)} items")
         
-        return f"Added {product_name} to your cart for ₹{price:,}. Your cart now has {len(self.cart)} items."
-        
     def remove_from_cart(self, item_id=None):
         """Remove item from cart"""
         if not self.cart:
@@ -752,7 +740,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         total = 0
         
         for item in self.cart:
-            cart_items.append(f"- {item['name']} (₹{item['price']:,}) x{item['quantity']}")
+            cart_items.append(f"{item['name']} (₹{item['price']:,}) x{item['quantity']}")
             total += item['price'] * item['quantity']
             
         cart_text = "\n".join(cart_items)
@@ -774,88 +762,47 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         return "Cart cleared"
         
     def handle_add_to_cart(self, query):
-        """Handle adding items to cart with confirmation"""
+        """Handles a direct user command to add an item to the cart."""
         # Validate operation
         is_valid, message = self.validate_cart_operation("add")
         if not is_valid:
             return message
             
-        # Extract product name from query
-        products = self.search_products(query)
-        if not products:
-            return "I couldn't find that product. Please try searching for it first."
+        if not self.retriever:
+            return "Product search is currently unavailable. Please try again later."
             
-        # Get the first product found
+        # Clean up the query to get just the product name
+        cleaned_query = re.sub(r'add|to|my|cart|card|please', '', query, flags=re.IGNORECASE).strip()
+        
+        if not cleaned_query:
+            return "Of course. What product would you like to add?"
+
+        products = self.search_products(cleaned_query)
+        if not products:
+            return f"I'm sorry, I couldn't find any products matching '{cleaned_query}'. Please try a different name."
+            
+        # Get the top search result
         product_doc = products[0]
         product_name = product_doc.metadata.get('product_name', 'Unknown Product')
-        product_price = product_doc.metadata.get('price_inr', 0)
+        product_price = product_doc.metadata.get('price', 0)
         product_id = product_doc.metadata.get('product_id', '')
         
-        # Check if product is in stock
+        # Check stock before adding
         try:
-            inventory_df = pd.read_csv('walmart_inventory.csv')
+            inventory_df = pd.read_csv('walmart_inventory.csv', quoting=1)
             product_row = inventory_df[inventory_df['product_id'] == product_id]
             
-            if product_row.empty:
-                return f"Sorry, {product_name} is not available in our inventory."
+            if product_row.empty or product_row.iloc[0]['stock_quantity'] <= 0:
+                return f"I'm sorry, {product_name} is currently out of stock."
                 
-            stock_quantity = product_row.iloc[0]['stock_quantity']
-            if stock_quantity <= 0:
-                return f"Sorry, {product_name} is currently out of stock."
-                
-            # Store pending product for confirmation
-            self.pending_product = {
-                'name': product_name,
-                'price': product_price,
-                'id': product_id,
-                'stock': stock_quantity
-            }
-            
-            # Confirm with user
-            confirmation_response = f"I found {product_name} for ₹{product_price:,} with {stock_quantity} in stock. "
-            confirmation_response += "Would you like me to add this to your cart? Say 'yes' to add or 'no' to cancel."
-            
-            return confirmation_response
+            # Directly add the item and confirm.
+            self.add_to_cart(product_name, product_price, product_id)
+            response = f"Okay, I've added {product_name} to your cart."
+            response += " You can continue shopping or say 'place order' to checkout."
+            return response
             
         except Exception as e:
-            return f"Sorry, I couldn't check the product availability. Error: {str(e)}"
-            
-    def confirm_add_to_cart(self, product_name, product_price, product_id):
-        """Confirm and add item to cart"""
-        if not self.current_user:
-            return "Please login first to add items to your cart."
-            
-        # Add to cart
-        result = self.add_to_cart(product_name, product_price, product_id)
-        
-        # Ask if user wants to place order or get more recommendations
-        result += "\n\nWould you like to place your order now or would you like more product recommendations?"
-        
-        return result
-        
-    def handle_cart_confirmation(self, query):
-        """Handle cart confirmation responses"""
-        if not self.current_user:
-            return "Please login first to manage your cart."
-            
-        # Check if we have a pending product to add
-        if hasattr(self, 'pending_product') and self.pending_product:
-            product_name = self.pending_product['name']
-            product_price = self.pending_product['price']
-            product_id = self.pending_product['id']
-            
-            # Add to cart
-            result = self.add_to_cart(product_name, product_price, product_id)
-            
-            # Clear pending product
-            self.pending_product = None
-            
-            # Ask next steps
-            result += "\n\nWould you like to place your order now or would you like more product recommendations?"
-            
-            return result
-        else:
-            return "I don't have a product waiting to be added to your cart. Please search for a product first."
+            return f"Sorry, there was an error checking our inventory. Please try again in a moment. Error: {str(e)}"
         
     def handle_remove_from_cart(self, query):
         """Handle removing items from cart"""
@@ -885,23 +832,136 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         if not is_valid:
             return message
             
-        # Check if cart is empty
-        if not self.cart:
-            return "Your cart is empty. Please add some items to your cart before placing an order."
-            
         # Start checkout process
-        self.checkout_state = "address_selection"
+        self.checkout_state = "confirm_order"
         cart_info = self.get_cart_contents()
         cart_total = self.get_cart_total()
         
-        response = f"Great! Let's complete your order. {cart_info}\n\n"
-        response += f"Total amount: ₹{cart_total:,}\n\n"
-        response += "Please select a delivery address. You can say 'use home address' or 'use work address'."
+        response = f"Let's get your order placed. {cart_info}\n"
+        response += f"The total amount is ₹{cart_total:,.2f}. "
+        response += "Are you sure you want to proceed? Please say 'yes' to continue."
         
         return response
+
+    def handle_checkout_interaction(self, query):
+        """Manages the step-by-step checkout process based on the current state."""
+        state = self.checkout_state
         
+        if state == "confirm_order":
+            if 'yes' in query.lower():
+                self.checkout_state = "awaiting_address"
+                return self.prompt_for_address()
+            else:
+                self.checkout_state = None
+                return "Checkout cancelled. Let me know if there's anything else I can help with."
+
+        elif state == "awaiting_address":
+            return self.handle_address_selection(query)
+
+        elif state == "awaiting_payment":
+            return self.handle_payment_selection(query)
+
+        else:
+            self.checkout_state = None
+            return "There was an issue with the checkout process. Let's start over. How can I help?"
+
+    def prompt_for_address(self):
+        """Generates a prompt asking the user to select a delivery address."""
+        response = "For delivery, please choose an address. "
+        if not self.current_user:
+            return "Error: User not logged in."
+        
+        addresses = self.current_user.get('addresses', [])
+        
+        if not addresses:
+            # This path is not fully implemented - would need to prompt for new address details
+            return "You have no saved addresses. Please add an address to continue." 
+
+        for i, addr in enumerate(addresses):
+            response += f"Say '{i+1}' for {addr['type']} at {addr['street']}. "
+        
+        response += "Or say 'cancel' to stop."
+        return response
+
+    def handle_address_selection(self, query):
+        """Processes user's address choice."""
+        if not self.current_user:
+            return "Error: User not logged in."
+        addresses = self.current_user.get('addresses', [])
+        
+        try:
+            match = re.search(r'\d+', query)
+            if not match:
+                raise ValueError("No number found in query")
+            choice = int(match.group()) - 1
+
+            if addresses and 0 <= choice < len(addresses):
+                self.checkout_data['address'] = addresses[choice]
+                self.checkout_state = "awaiting_payment"
+                return self.prompt_for_payment()
+            else:
+                return "That's not a valid choice. Please select a number from the list. " + self.prompt_for_address()
+        except (ValueError, AttributeError):
+            if 'cancel' in query.lower():
+                self.checkout_state = None
+                self.checkout_data = {}
+                return "Checkout cancelled."
+            return "I didn't understand that. Please say the number of the address you'd like to use. " + self.prompt_for_address()
+    
+    def prompt_for_payment(self):
+        """Generates a prompt for payment method selection."""
+        response = "Great, address selected. Now, how would you like to pay? "
+        if not self.current_user:
+            return "Error: User not logged in."
+        payments = self.current_user.get('payment_methods', [])
+
+        if not payments:
+            return "You have no saved payment methods. Please add one to continue."
+
+        for i, pay in enumerate(payments):
+            if pay['type'] == 'Credit Card':
+                response += f"Say '{i+1}' for Credit Card ending in {pay['last4']}. "
+            else:
+                response += f"Say '{i+1}' for {pay['type']}. "
+
+        response += "Or say 'cancel' to stop."
+        return response
+
+    def handle_payment_selection(self, query):
+        """Processes user's payment choice and places the order."""
+        if not self.current_user:
+            return "Error: User not logged in."
+        payments = self.current_user.get('payment_methods', [])
+
+        try:
+            match = re.search(r'\d+', query)
+            if not match:
+                raise ValueError("No number found in query")
+            choice = int(match.group()) - 1
+            if payments and 0 <= choice < len(payments):
+                self.checkout_data['payment'] = payments[choice]
+                
+                # All data collected, place the order
+                address_str = f"{self.checkout_data['address']['street']}, {self.checkout_data['address']['city']}"
+                payment_str = self.checkout_data['payment']['type']
+                
+                response = self.place_order(address_str, payment_str)
+                
+                # Clear checkout state
+                self.checkout_state = None
+                self.checkout_data = {}
+                return response
+            else:
+                return "That's not a valid choice. Please try again. " + self.prompt_for_payment()
+        except (ValueError, AttributeError):
+            if 'cancel' in query.lower():
+                self.checkout_state = None
+                self.checkout_data = {}
+                return "Checkout cancelled."
+            return "I didn't get that. Please say the number for your payment choice. " + self.prompt_for_payment()
+
     def place_order(self, delivery_address, payment_method):
-        """Place order and add to database"""
+        """Place order, save each cart item to orders CSV, and clear the cart."""
         if not self.current_user:
             return "Please login first to place an order."
             
@@ -909,165 +969,203 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             return "Your cart is empty. Please add some items before placing an order."
             
         try:
-            # Generate order ID
-            order_id = f"ORD{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            cart_id = f"CART{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
+            order_date = datetime.now()
             
-            # Calculate total
+            # Define order columns
+            order_columns = [
+                'order_id', 'user_id', 'product_id', 'product_name', 'price_inr', 
+                'quantity', 'order_date', 'delivery_address', 'payment_method', 
+                'delivery_status', 'replacement_eligible_until', 'refund_eligible_until'
+            ]
+
+            # Load existing orders or create a new DataFrame
+            if os.path.exists('user_orders.csv'):
+                orders_df = pd.read_csv('user_orders.csv')
+            else:
+                orders_df = pd.DataFrame(columns=order_columns)
+
+            new_orders = []
+            for item in self.cart:
+                order_item = {
+                    'order_id': order_id,
+                    'user_id': self.current_user['user_id'],
+                    'product_id': item['product_id'],
+                    'product_name': item['name'],
+                    'price_inr': item['price'],
+                    'quantity': item['quantity'],
+                    'order_date': order_date.isoformat(),
+                    'delivery_address': delivery_address,
+                    'payment_method': payment_method,
+                    'delivery_status': 'Placed',
+                    'replacement_eligible_until': (order_date + timedelta(days=15)).isoformat(),
+                    'refund_eligible_until': (order_date + timedelta(days=15)).isoformat()
+                }
+                new_orders.append(order_item)
+            
+            # Append new orders and save
+            if new_orders:
+                new_orders_df = pd.DataFrame(new_orders)
+                updated_orders_df = pd.concat([orders_df, new_orders_df], ignore_index=True)
+                updated_orders_df.to_csv('user_orders.csv', index=False)
+
             total_amount = self.get_cart_total()
-            
-            # Create order record
-            order_data = {
-                'order_id': order_id,
-                'user_id': self.current_user['user_id'],
-                'cart_id': cart_id,
-                'total_amount': total_amount,
-                'order_date': datetime.now().isoformat(),
-                'delivery_address': delivery_address,
-                'payment_method': payment_method,
-                'order_status': 'Confirmed',
-                'delivery_status': 'Processing',
-                'delivery_date': (datetime.now() + timedelta(days=3)).isoformat()
-            }
-            
-            # Add to orders CSV
-            orders_df = pd.read_csv('user_orders.csv')
-            new_order_df = pd.DataFrame([order_data])
-            updated_orders_df = pd.concat([orders_df, new_order_df], ignore_index=True)
-            updated_orders_df.to_csv('user_orders.csv', index=False)
             
             # Clear cart after successful order
             self.cart.clear()
             self.save_user_cart(self.current_user['user_id'], self.cart)
             
             # Generate confirmation message
-            response = f"Order placed successfully!\n\n"
-            response += f"Order ID: {order_id}\n"
-            response += f"Total Amount: ₹{total_amount:,}\n"
-            response += f"Delivery Address: {delivery_address}\n"
-            response += f"Payment Method: {payment_method}\n"
-            response += f"Expected Delivery: {(datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')}\n\n"
-            response += "Your cart has been cleared. Thank you for shopping with Walmart!"
+            response = f"Order placed successfully! Your Order ID is {order_id}.\n"
+            response += f"Total Amount: ₹{total_amount:,}. "
+            response += "You can ask for the order status or replacement eligibility using your order ID."
             
             return response
             
         except Exception as e:
+            print(f"Error placing order: {e}")
             return f"Sorry, there was an error placing your order. Error: {str(e)}"
 
     def handle_order_status(self, query):
-        """Handle order status and tracking queries"""
+        """Handle order status and tracking queries. Can find by order ID or get the latest."""
         if not self.current_user:
             return "Please login first to check your order status."
             
-        # Load orders from CSV
         try:
+            if not os.path.exists('user_orders.csv'):
+                return f"Hello {self.current_user['name']}, you have no past orders."
+
             orders_df = pd.read_csv('user_orders.csv')
             user_orders = orders_df[orders_df['user_id'] == self.current_user['user_id']]
-            
+
             if user_orders.empty:
-                return f"Hello {self.current_user['name']}, you don't have any orders yet. Would you like to browse our products?"
-                
-            # Get the most recent order
-            latest_order = user_orders.iloc[-1]
-            
-            status_response = f"Hello {self.current_user['name']}, here's your order status:\n"
-            status_response += f"Order ID: {latest_order['order_id']}\n"
-            status_response += f"Total Amount: ₹{latest_order['total_amount']:,}\n"
-            status_response += f"Order Status: {latest_order['order_status']}\n"
-            status_response += f"Delivery Status: {latest_order['delivery_status']}\n"
-            
-            if latest_order['delivery_status'] == 'In Transit':
-                status_response += f"Expected Delivery: {latest_order['delivery_date']}\n"
-            elif latest_order['delivery_status'] == 'Delivered':
-                status_response += f"Delivered on: {latest_order['delivery_date']}\n"
-                
-            status_response += "\nWould you like to place a new order or check other products?"
-            
-            return status_response
-            
-        except Exception as e:
-            return f"Sorry, I couldn't retrieve your order status. Error: {str(e)}"
-            
-    def handle_refund_replacement_status(self, query):
-        """Handle refund and replacement status queries"""
-        if not self.current_user:
-            return "Please login first to check your refund or replacement status."
-            
-        # Mock refund/replacement data
-        refund_status = {
-            "U001": {
-                "has_refund": True,
-                "refund_id": "REF001",
-                "amount": "₹2,999",
-                "status": "Processed",
-                "processed_date": "2024-01-20"
-            },
-            "U002": {
-                "has_refund": False,
-                "message": "No refund requests found"
-            }
-        }
-        
-        user_id = self.current_user['user_id']
-        user_refund = refund_status.get(user_id, {"has_refund": False, "message": "No refund requests found"})
-        
-        if user_refund.get("has_refund", False):
-            response = f"Hello {self.current_user['name']}, here's your refund status:\n"
-            response += f"Refund ID: {user_refund['refund_id']}\n"
-            response += f"Amount: {user_refund['amount']}\n"
-            response += f"Status: {user_refund['status']}\n"
-            response += f"Processed: {user_refund['processed_date']}\n"
-            response += "\nIs there anything else I can help you with?"
-        else:
-            response = f"Hello {self.current_user['name']}, {user_refund['message']}. "
-            response += "Would you like to place a new order or browse our products?"
-            
-        return response
-        
-    def handle_product_recommendations(self, query):
-        """Handle product recommendations based on user preferences"""
-        if not self.current_user:
-            return "Please login first to get personalized recommendations."
-            
-        # Load inventory
-        try:
-            inventory_df = pd.read_csv('walmart_inventory.csv')
-            
-            # Simple recommendation logic based on query keywords
-            recommendations = []
-            
-            if any(keyword in query.lower() for keyword in ["electronics", "phone", "headphone", "laptop"]):
-                electronics = inventory_df[inventory_df['product_category'].str.contains('Electronics', case=False, na=False)]
-                recommendations = electronics.head(3)
-            elif any(keyword in query.lower() for keyword in ["clothing", "shirt", "pants", "dress", "fashion"]):
-                clothing = inventory_df[inventory_df['product_category'].str.contains('Clothing', case=False, na=False)]
-                recommendations = clothing.head(3)
-            elif any(keyword in query.lower() for keyword in ["home", "kitchen", "furniture"]):
-                home = inventory_df[inventory_df['product_category'].str.contains('Kitchen', case=False, na=False)]
-                recommendations = home.head(3)
+                return f"Hello {self.current_user['name']}, you don't have any orders yet."
+
+            # Try to find an order ID in the query
+            import re
+            match = re.search(r'ORD-[A-F0-9]{8}', query.upper())
+            target_order = None
+
+            if match:
+                order_id = match.group(0)
+                order_details = user_orders[user_orders['order_id'] == order_id]
+                if not order_details.empty:
+                    target_order = order_details
+                    response = f"Here is the status for order {order_id}:\n"
+                else:
+                    return f"I could not find an order with the ID {order_id} for your account."
             else:
-                # General recommendations - top products by price (assuming higher price = better quality)
-                recommendations = inventory_df.nlargest(5, 'price_inr')
-                
-            if recommendations.empty:
-                return f"Hello {self.current_user['name']}, I couldn't find specific recommendations based on your query. "
-                return "Let me show you some of our best products instead."
-                
-            response = f"Hello {self.current_user['name']}, here are my recommendations for you:\n\n"
-            
-            for idx, product in recommendations.iterrows():
-                response += f"• {product['product_name']} - ₹{product['price_inr']:,}\n"
-                response += f"  Category: {product['product_category']}\n"
-                response += f"  Stock: {product['stock_quantity']} available\n\n"
-                
-            response += "Would you like me to add any of these items to your cart? "
-            response += "Just say 'Add [product name] to cart' and I'll help you with that. "
-            response += "Or would you like more recommendations?"
-            
+                # If no ID is specified, get the latest order
+                latest_order_id = user_orders['order_id'].iloc[-1]
+                target_order = user_orders[user_orders['order_id'] == latest_order_id]
+                response = f"Here is the status for your latest order ({latest_order_id}):\n"
+
+            if target_order is None or target_order.empty:
+                return "Could not find the specified order."
+
+            # Aggregate products for the response
+            delivery_status = target_order['delivery_status'].iloc[0]
+            total_amount = (target_order['price_inr'] * target_order['quantity']).sum()
+
+            response += f"Status: {delivery_status}\n"
+            response += f"Total: ₹{total_amount:,.2f}\n"
+            response += "Products in this order:\n"
+            for _, item in target_order.iterrows():
+                response += f"- {item['product_name']} (x{item['quantity']})\n"
+
             return response
             
         except Exception as e:
-            return f"Sorry, I couldn't load product recommendations. Error: {str(e)}"
+            print(f"Error getting order status: {e}")
+            return f"Sorry, I couldn't retrieve your order status. Error: {str(e)}"
+            
+    def handle_refund_replacement_status(self, query):
+        """Handle refund and replacement status queries based on a 15-day policy."""
+        if not self.current_user:
+            return "Please login first to check your refund or replacement status."
+
+        try:
+            if not os.path.exists('user_orders.csv'):
+                return f"Hello {self.current_user['name']}, you have no past orders to check."
+
+            orders_df = pd.read_csv('user_orders.csv')
+            user_orders = orders_df[orders_df['user_id'] == self.current_user['user_id']]
+
+            if user_orders.empty:
+                return f"Hello {self.current_user['name']}, you don't have any orders yet."
+
+            # Try to find an order ID in the query
+            import re
+            match = re.search(r'ORD-[A-F0-9]{8}', query.upper())
+            target_order_id = None
+
+            if match:
+                order_id = match.group(0)
+                if order_id in user_orders['order_id'].values:
+                    target_order_id = order_id
+                else:
+                    return f"I could not find an order with the ID {order_id} for your account."
+            else:
+                # If no ID is specified, use the latest order
+                target_order_id = user_orders['order_id'].iloc[-1]
+
+            order_details_row = user_orders[user_orders['order_id'] == target_order_id]
+            if order_details_row.empty:
+                return f"Could not find details for order {target_order_id}."
+
+            order_details = order_details_row.iloc[0]
+            
+            eligibility_date_str = order_details['refund_eligible_until']
+            eligibility_date = datetime.fromisoformat(eligibility_date_str)
+            
+            response = f"For order {target_order_id}:\n"
+            if datetime.now() <= eligibility_date:
+                days_left = (eligibility_date - datetime.now()).days
+                response += f"You are eligible for a refund or replacement until {eligibility_date.strftime('%B %d, %Y')}. "
+                response += f"You have {days_left} days left to request it."
+            else:
+                response += f"This order is no longer eligible for a refund or replacement. The window closed on {eligibility_date.strftime('%B %d, %Y')}."
+
+            return response
+            
+        except Exception as e:
+            print(f"Error getting refund/replacement status: {e}")
+            return f"Sorry, I couldn't retrieve the status. Error: {str(e)}"
+        
+    def handle_product_recommendations(self, query):
+        """Handle product recommendations using vector search for relevance."""
+        if not self.current_user:
+            return "Please login first to get personalized recommendations."
+            
+        if not self.retriever:
+            return "I can't access product information right now to make recommendations."
+
+        # Use vector search to find relevant products
+        search_results = self.search_products(query)
+        
+        if not search_results:
+            return f"I couldn't find any products matching '{query}' to recommend. You could try a broader search term."
+
+        response = f"Based on your request, here are some recommendations for you: "
+        
+        recommended_products = []
+        for doc in search_results[:3]: # recommend top 3
+            product_name = doc.metadata.get('product_name', 'Unknown Product')
+            product_price = doc.metadata.get('price', 0)
+            recommended_products.append(f"{product_name} for ₹{product_price:,.0f}")
+        
+        if recommended_products:
+            # Join into a natural sentence
+            if len(recommended_products) > 1:
+                response += ", ".join(recommended_products[:-1]) + f", and {recommended_products[-1]}."
+            else:
+                response += f"{recommended_products[0]}."
+        
+            response += " Would you like me to add any of these to your cart?"
+        else:
+            return f"I found some items related to '{query}' but couldn't formulate a recommendation. Please try searching directly."
+
+        return response
         
     def debug_cart_state(self):
         """Debug function to show current cart state"""
@@ -1223,7 +1321,7 @@ def voice_interface():
     
     # Generic greeting and user authentication
     assistant.speak("Hello! Welcome to Walmart Voice Assistant. I'm here to help you with your shopping needs.", async_mode=False)
-    assistant.speak("Please provide your user ID to get started. You can say your user ID or type it.", async_mode=False)
+    assistant.speak("To get started, please type your user ID.", async_mode=False)
     print("Please provide your user ID to login (e.g., U001, U002)")
     
     # User authentication loop

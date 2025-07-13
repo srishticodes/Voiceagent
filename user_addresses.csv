@@ -1,0 +1,4 @@
+address_id,user_id,type,street,city,state,zipcode,country
+A001,U001,Home,"123 Main Street","New York",NY,10001,USA
+A002,U001,Work,"456 Business Ave","New York",NY,10002,USA
+A003,U002,Home,"789 Oak Drive","Los Angeles",CA,90210,USA 
