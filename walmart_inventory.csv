@@ -1,0 +1,51 @@
+product_id,product_name,product_category,product_description,price_inr,stock_status,stock_quantity,delivery_status,delivery_date
+P001,Sony WH-1000XM4 Noise Cancelling Headphones,Electronics,Wireless over-ear headphones with noise cancellation,24999,In Stock,50,Available,None
+P002,Apple iPhone 15 Pro,Electronics,Latest iPhone with A17 Pro chip and titanium design,129999,In Stock,25,Available,None
+P003,Samsung Galaxy S24 Ultra,Electronics,Android flagship with S Pen and AI features,119999,In Stock,30,Available,None
+P004,MacBook Pro 14-inch,Electronics,Apple laptop with M3 Pro chip,249999,In Stock,15,Available,None
+P005,Dell XPS 13 Laptop,Electronics,Ultrabook with Intel processor and InfinityEdge display,89999,In Stock,20,Available,None
+P006,Adidas Men's Essentials Hoodie,Clothing,Comfortable cotton hoodie for everyday wear,2499,In Stock,100,Available,None
+P007,Nike Air Max 270 Sneakers,Footwear,Comfortable running shoes with Air Max technology,8999,In Stock,75,Available,None
+P008,Colgate Strong Teeth Toothpaste,Personal Care,Toothpaste for strong teeth and fresh breath,249,In Stock,200,Available,None
+P009,Philips Sonicare Electric Toothbrush,Personal Care,Advanced electric toothbrush with sonic technology,4999,In Stock,40,Available,None
+P010,Instant Pot Duo 7-in-1,Kitchen Appliances,Multi-functional pressure cooker and slow cooker,8999,In Stock,35,Available,None
+P011,KitchenAid Stand Mixer,Kitchen Appliances,Professional stand mixer for baking,29999,In Stock,20,Available,None
+P012,LEGO Star Wars Millennium Falcon,Toys,Collector's edition LEGO set with 7541 pieces,29999,In Stock,10,Available,None
+P013,PlayStation 5 Console,Gaming,Next-gen gaming console with DualSense controller,49999,In Stock,15,Available,None
+P014,Xbox Series X Console,Gaming,Microsoft gaming console with Game Pass,44999,In Stock,12,Available,None
+P015,Canon EOS R6 Camera,Electronics,Full-frame mirrorless camera for photography,189999,In Stock,8,Available,None
+P016,GoPro Hero 11 Black,Electronics,Action camera with 5.3K video recording,39999,In Stock,25,Available,None
+P017,Beats Studio3 Wireless Headphones,Electronics,Wireless headphones with Pure ANC,24999,In Stock,30,Available,None
+P018,Apple AirPods Pro,Electronics,Wireless earbuds with active noise cancellation,19999,In Stock,60,Available,None
+P019,Amazon Echo Dot,Electronics,Smart speaker with Alexa voice assistant,3999,In Stock,80,Available,None
+P020,Google Nest Hub,Electronics,Smart display with Google Assistant,8999,In Stock,45,Available,None
+P021,HP Pavilion Laptop,Electronics,Windows laptop with Intel processor,64999,In Stock,25,Available,None
+P022,Lenovo ThinkPad X1 Carbon,Electronics,Business laptop with premium build quality,129999,In Stock,18,Available,None
+P023,ASUS ROG Strix Gaming Laptop,Electronics,Gaming laptop with RTX graphics,149999,In Stock,12,Available,None
+P024,MSI Creator 17 Laptop,Electronics,Content creation laptop with 4K display,199999,In Stock,8,Available,None
+P025,Apple iPad Pro 12.9-inch,Electronics,Pro tablet with M2 chip and Magic Keyboard,99999,In Stock,22,Available,None
+P026,Samsung Galaxy Tab S9 Ultra,Electronics,Android tablet with S Pen,79999,In Stock,15,Available,None
+P027,Microsoft Surface Pro 9,Electronics,2-in-1 tablet and laptop,99999,In Stock,20,Available,None
+P028,Apple Watch Series 9,Electronics,Smartwatch with health monitoring,39999,In Stock,35,Available,None
+P029,Samsung Galaxy Watch 6,Electronics,Android smartwatch with fitness tracking,29999,In Stock,28,Available,None
+P030,Fitbit Sense 2,Electronics,Advanced fitness tracker with health metrics,19999,In Stock,40,Available,None
+P031,Under Armour Men's Tech T-Shirt,Clothing,Moisture-wicking athletic shirt,1499,In Stock,150,Available,None
+P032,Nike Women's Running Shorts,Clothing,Comfortable running shorts with built-in liner,1999,In Stock,120,Available,None
+P033,Adidas Women's Ultraboost Running Shoes,Footwear,Premium running shoes with Boost technology,12999,In Stock,45,Available,None
+P034,New Balance Men's 990v5,Footwear,Classic sneakers with ENCAP technology,9999,In Stock,60,Available,None
+P035,Converse Chuck Taylor All Star,Footwear,Classic canvas sneakers,3999,In Stock,200,Available,None
+P036,Levi's 501 Original Jeans,Clothing,Classic straight-fit denim jeans,2999,In Stock,180,Available,None
+P037,Calvin Klein Men's Boxer Briefs,Clothing,Comfortable cotton blend underwear,1499,In Stock,300,Available,None
+P038,Victoria's Secret Women's Pajamas,Clothing,Soft cotton pajama set,3999,In Stock,80,Available,None
+P039,The North Face Men's Jacket,Clothing,Waterproof jacket for outdoor activities,8999,In Stock,55,Available,None
+P040,Patagonia Women's Fleece Jacket,Clothing,Warm fleece jacket for cold weather,5999,In Stock,40,Available,None
+P041,Oral-B Pro 1000 Electric Toothbrush,Personal Care,Basic electric toothbrush with pressure sensor,1999,In Stock,90,Available,None
+P042,Crest 3D White Toothpaste,Personal Care,Whitening toothpaste with fluoride,349,In Stock,250,Available,None
+P043,Head & Shoulders Anti-Dandruff Shampoo,Personal Care,Dandruff control shampoo,449,In Stock,200,Available,None
+P044,Dove Beauty Bar Soap,Personal Care,Moisturizing beauty soap,199,In Stock,400,Available,None
+P045,Neutrogena Oil-Free Acne Wash,Personal Care,Facial cleanser for acne-prone skin,599,In Stock,150,Available,None
+P046,Maybelline Great Lash Mascara,Personal Care,Volumizing and lengthening mascara,799,In Stock,180,Available,None
+P047,L'Oreal Paris True Match Foundation,Personal Care,Natural finish foundation,999,In Stock,120,Available,None
+P048,Revlon ColorStay Lipstick,Personal Care,Long-lasting lipstick,649,In Stock,160,Available,None
+P049,Nivea Men's Face Wash,Personal Care,Cleansing face wash for men,399,In Stock,200,Available,None
+P050,Gillette Fusion5 ProGlide Razor,Personal Care,Advanced razor with 5 blades,899,In Stock,100,Available,None 
