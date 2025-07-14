@@ -19,6 +19,7 @@ from audiorecorder import audiorecorder
 from gtts import gTTS
 import whisper
 import io
+from scipy.signal import resample
 
 # Page configuration
 st.set_page_config(
@@ -317,7 +318,7 @@ class CloudWalmartAssistant:
             return None
 
     # New: transcribe audio bytes using Whisper
-    def transcribe_audio(self, audio_input) -> str:
+    def transcribe_audio(self, audio_input, input_sample_rate: int = 44100) -> str:
         """Convert audio input (numpy array or WAV/MP3 bytes) to text."""
         try:
             if self.stt_model is None or audio_input is None or len(audio_input) == 0:
@@ -334,6 +335,15 @@ class CloudWalmartAssistant:
                 with wave.open(io.BytesIO(audio_input), 'rb') as wf:
                     frames = wf.readframes(wf.getnframes())
                     audio_array = np.frombuffer(frames, dtype=np.int16)
+
+            # Convert to mono if needed
+            if audio_array.ndim > 1:
+                audio_array = audio_array.mean(axis=1)
+
+            # Resample from input_sample_rate (default 44.1k) to 16k expected by Whisper
+            target_sr = 16000
+            if input_sample_rate != target_sr:
+                audio_array = resample(audio_array, int(len(audio_array) * target_sr / input_sample_rate))
 
             # Whisper expects float32 in range [-1, 1]
             audio_float = audio_array.astype(np.float32) / 32768.0
@@ -502,6 +512,17 @@ def main():
                     st.write(msg['text'])
                     if msg.get('audio') is not None:
                         st.audio(msg['audio'], format="audio/mp3")
+
+        # One-time greeting
+        if 'greeted' not in st.session_state:
+            greeting_text = "Hello! I'm your Walmart Voice Assistant. How can I help you today?"
+            greeting_audio = assistant.synthesize_speech(greeting_text)
+            st.session_state.history.append({
+                'role': 'assistant',
+                'text': greeting_text,
+                'audio': greeting_audio,
+            })
+            st.session_state.greeted = True
 
         st.divider()
         st.write("Press **Start Recording** and speak your request, then press **Stop Recording**.")
