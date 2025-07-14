@@ -334,7 +334,7 @@ Search Terms: {product_name} {category} {description}
             if os.path.exists(cart_file):
                 df = pd.read_csv(cart_file)
             else:
-                df = pd.DataFrame(columns=cart_columns)
+                df = pd.DataFrame(columns=pd.Index(cart_columns))
 
             # Ensure all columns are present
             for col in cart_columns:
@@ -384,15 +384,17 @@ Search Terms: {product_name} {category} {description}
             if user_series.empty:
                 return False
 
-            self.current_user = user_series.to_dict('records')[0]
+            self.current_user = user_series.iloc[0].to_dict()
             
             # Load addresses
             addresses_df = pd.read_csv("user_addresses.csv")
-            self.current_user['addresses'] = addresses_df[addresses_df['user_id'] == user_id].to_dict('records')
+            user_addresses = addresses_df[addresses_df['user_id'] == user_id]
+            self.current_user['addresses'] = user_addresses.to_dict(orient='records')
 
             # Load payment methods
             payments_df = pd.read_csv("user_payment_methods.csv")
-            self.current_user['payment_methods'] = payments_df[payments_df['user_id'] == user_id].to_dict('records')
+            user_payments = payments_df[payments_df['user_id'] == user_id]
+            self.current_user['payment_methods'] = user_payments.to_dict(orient='records')
 
             self.user_session["customer_id"] = user_id
             
@@ -809,7 +811,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                 
             # Directly add the item and confirm.
             self.add_to_cart(product_name, product_price, product_id)
-            response = f"Okay, I've added {product_name} to your cart."
+            response = f"Great! I've added {product_name} to your cart for ₹{product_price:,}."
             response += " You can continue shopping or say 'place order' to checkout."
             return response
             
@@ -839,9 +841,12 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         
     def handle_checkout(self, query):
         """Handle checkout process"""
+        print(f"[DEBUG] handle_checkout called with query: '{query}'")
+        
         # Validate operation
         is_valid, message = self.validate_cart_operation("checkout")
         if not is_valid:
+            print(f"[DEBUG] Cart validation failed: {message}")
             return message
             
         # Start checkout process
@@ -851,10 +856,11 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         
         print(f"[DEBUG] Starting checkout. State -> {self.checkout_state}. Cart total: ₹{cart_total:,.2f}")
         
-        response = f"Let's get your order placed. {cart_info}\n"
+        response = f"Perfect! Let me help you place your order. {cart_info}\n"
         response += f"The total amount is ₹{cart_total:,.2f}. "
-        response += "Are you sure you want to proceed? Please say 'yes' to continue."
+        response += "Would you like to proceed with checkout? Please say 'yes' to continue or 'no' to cancel."
         
+        print(f"[DEBUG] Checkout response: {response}")
         return response
 
     def handle_checkout_interaction(self, query):
@@ -863,14 +869,15 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         print(f"[DEBUG] Handling checkout interaction. Current state: {state}, Query: '{query}'")
         
         if state == "confirm_order":
-            if 'yes' in query.lower():
+            if 'yes' in query.lower() or 'proceed' in query.lower() or 'continue' in query.lower():
                 self.checkout_state = "awaiting_address"
-                print(f"[DEBUG] Checkout state updated: {self.checkout_state}")
+                print(f"[DEBUG] User confirmed order. Checkout state updated: {self.checkout_state}")
                 return self.prompt_for_address()
             else:
                 self.checkout_state = None
+                self.checkout_data = {}
                 print("[DEBUG] Checkout cancelled by user.")
-                return "Checkout cancelled. Let me know if there's anything else I can help with."
+                return "No problem! Your cart is still saved. You can checkout anytime by saying 'place order'."
 
         elif state == "awaiting_address":
             return self.handle_address_selection(query)
@@ -880,25 +887,30 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
 
         else:
             self.checkout_state = None
+            self.checkout_data = {}
             print(f"[DEBUG] Unknown checkout state '{state}'. Resetting.")
-            return "There was an issue with the checkout process. Let's start over. How can I help?"
+            return "There was an issue with the checkout process. Let's start over. Say 'place order' to try again."
 
     def prompt_for_address(self):
         """Generates a prompt asking the user to select a delivery address."""
-        response = "For delivery, please choose an address. "
+        print("[DEBUG] Prompting for address selection")
+        response = "Great! Now I need a delivery address. "
+        
         if not self.current_user:
             return "Error: User not logged in."
         
         addresses = self.current_user.get('addresses', [])
+        print(f"[DEBUG] Found {len(addresses)} addresses for user")
         
         if not addresses:
-            # This path is not fully implemented - would need to prompt for new address details
-            return "You have no saved addresses. Please add an address to continue." 
+            return "You don't have any saved addresses. Please add an address to continue with your order."
 
+        response += "Please choose from your saved addresses: "
         for i, addr in enumerate(addresses):
-            response += f"Say '{i+1}' for {addr['type']} at {addr['street']}. "
+            response += f"Say '{i+1}' for {addr['type']} address at {addr['street']}, {addr['city']}. "
         
-        response += "Or say 'cancel' to stop."
+        response += "Or say 'cancel' to stop the order."
+        print(f"[DEBUG] Address prompt: {response}")
         return response
 
     def handle_address_selection(self, query):
@@ -906,13 +918,15 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         if not self.current_user:
             return "Error: User not logged in."
         addresses = self.current_user.get('addresses', [])
-        print(f"[DEBUG] Handling address selection. Found {len(addresses)} addresses.")
+        print(f"[DEBUG] Handling address selection. Found {len(addresses)} addresses. Query: '{query}'")
         
         try:
-            match = re.search(r'\d+', query)
+            # Look for numbers in the query
+            match = re.search(r'(\d+)', query)
             if not match:
                 raise ValueError("No number found in query")
             choice = int(match.group()) - 1
+            print(f"[DEBUG] User selected address choice: {choice + 1}")
 
             if addresses and 0 <= choice < len(addresses):
                 self.checkout_data['address'] = addresses[choice]
@@ -920,32 +934,38 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                 print(f"[DEBUG] Address selected: {self.checkout_data['address']}. State -> {self.checkout_state}")
                 return self.prompt_for_payment()
             else:
-                return "That's not a valid choice. Please select a number from the list. " + self.prompt_for_address()
+                return f"That's not a valid choice. Please select a number from 1 to {len(addresses)}."
+                
         except (ValueError, AttributeError):
             if 'cancel' in query.lower():
                 self.checkout_state = None
                 self.checkout_data = {}
                 print("[DEBUG] Checkout cancelled. State has been reset.")
-                return "Checkout cancelled."
-            return "I didn't understand that. Please say the number of the address you'd like to use. " + self.prompt_for_address()
+                return "Order cancelled. Your cart is still saved for later."
+            return "I didn't understand that. Please say the number of the address you'd like to use, like 'one' or 'two'."
     
     def prompt_for_payment(self):
         """Generates a prompt for payment method selection."""
-        response = "Great, address selected. Now, how would you like to pay? "
+        print("[DEBUG] Prompting for payment method selection")
+        response = "Perfect! Address selected. Now, how would you like to pay? "
+        
         if not self.current_user:
             return "Error: User not logged in."
         payments = self.current_user.get('payment_methods', [])
+        print(f"[DEBUG] Found {len(payments)} payment methods for user")
 
         if not payments:
-            return "You have no saved payment methods. Please add one to continue."
+            return "You don't have any saved payment methods. Please add a payment method to continue."
 
+        response += "Please choose your payment method: "
         for i, pay in enumerate(payments):
             if pay['type'] == 'Credit Card':
                 response += f"Say '{i+1}' for Credit Card ending in {pay['last4']}. "
             else:
                 response += f"Say '{i+1}' for {pay['type']}. "
 
-        response += "Or say 'cancel' to stop."
+        response += "Or say 'cancel' to stop the order."
+        print(f"[DEBUG] Payment prompt: {response}")
         return response
 
     def handle_payment_selection(self, query):
@@ -953,13 +973,16 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         if not self.current_user:
             return "Error: User not logged in."
         payments = self.current_user.get('payment_methods', [])
-        print(f"[DEBUG] Handling payment selection. Found {len(payments)} methods.")
+        print(f"[DEBUG] Handling payment selection. Found {len(payments)} methods. Query: '{query}'")
 
         try:
-            match = re.search(r'\d+', query)
+            # Look for numbers in the query
+            match = re.search(r'(\d+)', query)
             if not match:
                 raise ValueError("No number found in query")
             choice = int(match.group()) - 1
+            print(f"[DEBUG] User selected payment choice: {choice + 1}")
+            
             if payments and 0 <= choice < len(payments):
                 self.checkout_data['payment'] = payments[choice]
                 print(f"[DEBUG] Payment selected: {self.checkout_data['payment']}. Placing order...")
@@ -973,20 +996,23 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                 # Clear checkout state
                 self.checkout_state = None
                 self.checkout_data = {}
-                print("[DEBUG] Order placed. Checkout state has been reset.")
+                print("[DEBUG] Order placed successfully. Checkout state has been reset.")
                 return response
             else:
-                return "That's not a valid choice. Please try again. " + self.prompt_for_payment()
+                return f"That's not a valid choice. Please select a number from 1 to {len(payments)}."
+                
         except (ValueError, AttributeError):
             if 'cancel' in query.lower():
                 self.checkout_state = None
                 self.checkout_data = {}
                 print("[DEBUG] Checkout cancelled. State has been reset.")
-                return "Checkout cancelled."
-            return "I didn't get that. Please say the number for your payment choice. " + self.prompt_for_payment()
+                return "Order cancelled. Your cart is still saved for later."
+            return "I didn't understand that. Please say the number for your payment choice, like 'one' or 'two'."
 
     def place_order(self, delivery_address, payment_method):
         """Place order, save each cart item to orders CSV, and clear the cart."""
+        print(f"[DEBUG] place_order called with address: {delivery_address}, payment: {payment_method}")
+        
         if not self.current_user:
             return "Please login first to place an order."
             
@@ -996,6 +1022,9 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         try:
             order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
             order_date = datetime.now()
+            
+            print(f"[DEBUG] Generated order ID: {order_id}")
+            print(f"[DEBUG] Processing {len(self.cart)} items in cart")
             
             # Define order columns
             order_columns = [
@@ -1007,8 +1036,10 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             # Load existing orders or create a new DataFrame
             if os.path.exists('user_orders.csv'):
                 orders_df = pd.read_csv('user_orders.csv')
+                print(f"[DEBUG] Loaded existing orders CSV with {len(orders_df)} records")
             else:
-                orders_df = pd.DataFrame(columns=order_columns)
+                orders_df = pd.DataFrame(columns=pd.Index(order_columns))
+                print("[DEBUG] Created new orders DataFrame")
 
             new_orders = []
             for item in self.cart:
@@ -1022,34 +1053,40 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                     'order_date': order_date.isoformat(),
                     'delivery_address': delivery_address,
                     'payment_method': payment_method,
-                    'delivery_status': 'Placed',
+                    'delivery_status': 'Order Placed',
                     'replacement_eligible_until': (order_date + timedelta(days=15)).isoformat(),
                     'refund_eligible_until': (order_date + timedelta(days=15)).isoformat()
                 }
                 new_orders.append(order_item)
+                print(f"[DEBUG] Added order item: {item['name']} (₹{item['price']})")
             
             # Append new orders and save
             if new_orders:
                 new_orders_df = pd.DataFrame(new_orders)
                 updated_orders_df = pd.concat([orders_df, new_orders_df], ignore_index=True)
                 updated_orders_df.to_csv('user_orders.csv', index=False)
+                print(f"[DEBUG] Saved {len(new_orders)} new order items to user_orders.csv")
 
             total_amount = self.get_cart_total()
             
             # Clear cart after successful order
             self.cart.clear()
             self.save_user_cart(self.current_user['user_id'], self.cart)
+            print("[DEBUG] Cart cleared after successful order")
             
             # Generate confirmation message
-            response = f"Order placed successfully! Your Order ID is {order_id}.\n"
+            response = f"Excellent! Your order has been placed successfully. "
+            response += f"Order ID: {order_id}. "
             response += f"Total Amount: ₹{total_amount:,}. "
-            response += "You can ask for the order status or replacement eligibility using your order ID."
+            response += f"Your order will be delivered to {delivery_address}. "
+            response += "You can check your order status anytime by asking 'where is my order'."
             
+            print(f"[DEBUG] Order placement complete. Response: {response}")
             return response
             
         except Exception as e:
-            print(f"Error placing order: {e}")
-            return f"Sorry, there was an error placing your order. Error: {str(e)}"
+            print(f"[DEBUG] Error placing order: {e}")
+            return f"Sorry, there was an error placing your order. Please try again. Error: {str(e)}"
 
     def handle_order_status(self, query):
         """Handle order status and tracking queries. Can find by order ID or get the latest."""
@@ -1203,15 +1240,16 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         else:
             print("  Cart is empty")
         print(f"User: {self.current_user['name'] if self.current_user else 'Not logged in'}")
+        print(f"Checkout state: {self.checkout_state}")
         print(f"==================\n")
         
     def validate_cart_operation(self, operation):
         """Validate cart operations"""
         if not self.current_user:
-            return False, "User not logged in"
+            return False, "Please login first to access your cart."
             
         if operation in ["remove", "checkout"] and not self.cart:
-            return False, "Cart is empty"
+            return False, "Your cart is empty."
             
         return True, "OK"
 
