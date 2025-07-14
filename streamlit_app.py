@@ -3,23 +3,92 @@
 Streamlit version of Waltz Voice Assistant - Cloud Compatible
 """
 
-import streamlit as st
-import pandas as pd
-import os
-import json
-import tempfile
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import uuid
+import os, json, tempfile, uuid, re, io
 from datetime import datetime, timedelta
-import re
 from typing import cast
-from audiorecorder import audiorecorder
-from gtts import gTTS
-import whisper
-import io
-from scipy.signal import resample
+
+# Third-party
+import streamlit as st  # type: ignore
+import numpy as np  # type: ignore
+from audiorecorder import audiorecorder  # type: ignore
+from gtts import gTTS  # type: ignore
+import whisper  # type: ignore
+from scipy.signal import resample  # type: ignore
+
+# Helper imports for audio conversion
+import wave
+
+
+# -----------------------------------------------------------------------------
+# StreamlitWaltzAssistant: reuse core logic from walmart_assistant.py but expose
+# a few convenience wrappers expected by the UI (transcribe_audio, synthesize_ 
+# speech, simple_checkout). This keeps full conversational behaviour while
+# satisfying type-checker/linter expectations.
+# -----------------------------------------------------------------------------
+
+
+class StreamlitWaltzAssistant(WalmartAssistant):
+    """Thin wrapper around WalmartAssistant for Streamlit-specific helpers."""
+
+    def __init__(self):
+        super().__init__()
+
+    # ---- Speech-to-Text helper ------------------------------------------------
+    def transcribe_audio(self, audio_input, input_sample_rate: int = 44100) -> str:  # noqa: D401
+        """Convert raw NumPy or bytes audio to text via Whisper."""
+        try:
+            if audio_input is None or len(audio_input) == 0 or self.stt_model is None:
+                return ""
+
+            import numpy as np  # local import to keep mypy happy
+
+            # Accept NumPy arrays directly from audiorecorder
+            if isinstance(audio_input, np.ndarray):
+                audio_array = audio_input.astype(np.int16)
+            else:
+                with wave.open(io.BytesIO(audio_input), "rb") as wf:
+                    frames = wf.readframes(wf.getnframes())
+                    audio_array = np.frombuffer(frames, dtype=np.int16)
+
+            # Mono
+            if audio_array.ndim > 1:
+                audio_array = audio_array.mean(axis=1)
+
+            # Resample to 16 kHz for Whisper
+            target_sr = 16000
+            if input_sample_rate != target_sr:
+                audio_array = resample(audio_array, int(len(audio_array) * target_sr / input_sample_rate))
+
+            audio_float = audio_array.astype(np.float32) / 32768.0
+            result = self.stt_model.transcribe(audio_float.flatten(), language="en", task="transcribe", fp16=False)
+            return str(result.get("text", "")).strip()
+        except Exception as exc:  # pragma: no cover
+            st.error(f"Transcription error: {exc}")
+            return ""
+
+    # ---- Text-to-Speech helper ----------------------------------------------
+    def synthesize_speech(self, text: str):  # noqa: D401
+        """Return MP3 bytes using gTTS (fallback when Google Cloud unavailable)."""
+        try:
+            if not text:
+                return None
+            tts = gTTS(text=text, lang="en")
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            return fp.read()
+        except Exception as exc:  # pragma: no cover
+            st.error(f"TTS error: {exc}")
+            return None
+
+    # ---- Simple checkout helper (non-interactive) ---------------------------
+    def simple_checkout(self):  # noqa: D401
+        """Place the order immediately with default data for demo."""
+        return self.handle_checkout("checkout")
+
+
+# Import the main assistant logic
+from walmart_assistant import WalmartAssistant
 
 # Page configuration
 st.set_page_config(
@@ -29,344 +98,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-class CloudWalmartAssistant:
+class StreamlitWaltzAssistant(WalmartAssistant):
+    """Thin subclass to expose WalmartAssistant inside Streamlit without modification."""
     def __init__(self):
-        self.current_user = None
-        self.cart = []
-        self.checkout_state = None
-        self.checkout_data = {}
-        self.setup_models()
-        self.setup_product_search()
-        self.stt_model = self.load_stt_model()
-        
-    @st.cache_resource
-    def setup_models(_self):
-        """Initialize AI models for cloud deployment"""
-        try:
-            # Use sentence-transformers for embeddings (cloud compatible)
-            model = SentenceTransformer('all-MiniLM-L6-v2')
-            return model
-        except Exception as e:
-            st.error(f"Error loading embedding model: {e}")
-            return None
-    
-    def setup_product_search(self):
-        """Setup product search with sentence transformers"""
-        try:
-            # Load inventory
-            if os.path.exists("walmart_inventory.csv"):
-                self.inventory_df = pd.read_csv("walmart_inventory.csv", quoting=1)
-                self.inventory_df = self.inventory_df[self.inventory_df['stock_status'] == 'In Stock']
-                
-                # Create embeddings for products
-                self.embedding_model = self.setup_models()
-                if self.embedding_model:
-                    product_texts = []
-                    for _, row in self.inventory_df.iterrows():
-                        text = f"{row['product_name']} {row['product_category']} {row['product_description']}"
-                        product_texts.append(text)
-                    
-                    self.product_embeddings = self.embedding_model.encode(product_texts)
-                    st.success("Product search initialized successfully")
-                else:
-                    st.error("Failed to initialize embedding model")
-            else:
-                st.error("walmart_inventory.csv not found")
-                self.inventory_df = pd.DataFrame()
-        except Exception as e:
-            st.error(f"Error setting up product search: {e}")
-            self.inventory_df = pd.DataFrame()
-    
-    def search_products(self, query, top_k=5):
-        """Search products using sentence transformers"""
-        try:
-            if self.embedding_model is None or self.inventory_df.empty:
-                return []
-            
-            # Encode query
-            query_embedding = self.embedding_model.encode([query])
-            
-            # Calculate similarities
-            similarities = cosine_similarity(query_embedding, self.product_embeddings)[0]
-            
-            # Get top results
-            top_indices = np.argsort(similarities)[-top_k:][::-1]
-            
-            results = []
-            for idx in top_indices:
-                if similarities[idx] > 0.1:  # Minimum similarity threshold
-                    product = self.inventory_df.iloc[idx]
-                    results.append({
-                        'product_id': product['product_id'],
-                        'product_name': product['product_name'],
-                        'category': product['product_category'],
-                        'price': product['price_inr'],
-                        'description': product['product_description'],
-                        'stock_quantity': product['stock_quantity'],
-                        'similarity': similarities[idx]
-                    })
-            
-            return results
-        except Exception as e:
-            st.error(f"Search error: {e}")
-            return []
-    
-    def authenticate_user(self, user_id):
-        """Authenticate user and load their data"""
-        try:
-            if not os.path.exists("users.csv"):
-                return False
-                
-            users_df = pd.read_csv("users.csv")
-            user_series = users_df[users_df['user_id'] == user_id]
+        super().__init__()
 
-            if user_series.empty:
-                return False
-
-            self.current_user = user_series.iloc[0].to_dict()
-            
-            # Load addresses
-            if os.path.exists("user_addresses.csv"):
-                addresses_df = pd.read_csv("user_addresses.csv")
-                user_addresses = addresses_df[addresses_df['user_id'] == user_id]
-                self.current_user['addresses'] = [row for _, row in user_addresses.iterrows()]
-            else:
-                self.current_user['addresses'] = []
-
-            # Load payment methods
-            if os.path.exists("user_payment_methods.csv"):
-                payments_df = pd.read_csv("user_payment_methods.csv")
-                user_payments = payments_df[payments_df['user_id'] == user_id]
-                self.current_user['payment_methods'] = [row for _, row in user_payments.iterrows()]
-            else:
-                self.current_user['payment_methods'] = []
-
-            # Load user's cart
-            self.cart = self.load_user_cart(user_id)
-            
-            return True
-        except Exception as e:
-            st.error(f"Authentication error: {e}")
-            return False
-    
-    def load_user_cart(self, user_id):
-        """Load user's cart from CSV"""
-        try:
-            if not os.path.exists("user_carts.csv"):
-                return []
-                
-            df = pd.read_csv("user_carts.csv")
-            if 'status' not in df.columns:
-                df['status'] = 'active'
-                
-            user_cart_df = df[(df['user_id'] == user_id) & (df['status'] == 'active')]
-            
-            cart_items = []
-            for _, row in user_cart_df.iterrows():
-                item = {
-                    "id": row['cart_id'],
-                    "product_id": row['product_id'],
-                    "name": row['product_name'],
-                    "price": float(row['price_inr']),
-                    "quantity": int(row['quantity']),
-                    "added_at": row['added_at']
-                }
-                cart_items.append(item)
-                
-            return cart_items
-        except Exception as e:
-            st.error(f"Error loading cart: {e}")
-            return []
-    
-    def save_user_cart(self, user_id, cart_items):
-        """Save user's cart to CSV"""
-        try:
-            cart_file = "user_carts.csv"
-            cart_columns = [
-                'cart_id', 'user_id', 'product_id', 'product_name', 
-                'price_inr', 'quantity', 'added_at', 'status'
-            ]
-
-            if os.path.exists(cart_file):
-                df = pd.read_csv(cart_file)
-            else:
-                df = pd.DataFrame(columns=pd.Index(cart_columns))
-
-            for col in cart_columns:
-                if col not in df.columns:
-                    df[col] = None
-
-            df = df[~((df['user_id'] == user_id) & (df['status'] == 'active'))]
-            
-            new_rows = []
-            for item in cart_items:
-                new_row = {
-                    'cart_id': item.get('id', f"CART-{uuid.uuid4().hex[:8]}"),
-                    'user_id': user_id,
-                    'product_id': item['product_id'],
-                    'product_name': item['name'],
-                    'price_inr': item['price'],
-                    'quantity': item['quantity'],
-                    'added_at': item.get('added_at', datetime.now().isoformat()),
-                    'status': 'active'
-                }
-                new_rows.append(new_row)
-
-            if new_rows:
-                new_rows_df = pd.DataFrame(new_rows)
-                df = pd.concat([df, new_rows_df], ignore_index=True)
-            
-            df.to_csv(cart_file, index=False)
-            
-        except Exception as e:
-            st.error(f"Error saving cart: {e}")
-    
-    def add_to_cart(self, product_name, price, product_id=None):
-        """Add item to cart"""
-        if not self.current_user:
-            return "Please login first"
-            
-        item = {
-            "id": str(uuid.uuid4()),
-            "product_id": product_id,
-            "name": str(product_name),
-            "price": float(price),
-            "quantity": 1,
-            "added_at": datetime.now().isoformat(),
-            "user_id": self.current_user['user_id']
-        }
-        
-        self.cart.append(item)
-        self.save_user_cart(self.current_user['user_id'], self.cart)
-        return f"Added {product_name} to cart"
-    
-    def get_cart_total(self):
-        """Get cart total"""
-        return sum(item['price'] * item['quantity'] for item in self.cart)
-    
-    def clear_cart(self):
-        """Clear cart"""
-        self.cart.clear()
-        if self.current_user:
-            self.save_user_cart(self.current_user['user_id'], self.cart)
-        return "Cart cleared"
-    
-    def simple_checkout(self):
-        """Simplified checkout for demo"""
-        if not self.current_user or not self.cart:
-            return "Cannot checkout - please login and add items to cart"
-        
-        try:
-            order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-            order_date = datetime.now()
-            
-            # Simple order creation
-            order_columns = [
-                'order_id', 'user_id', 'product_id', 'product_name', 'price_inr', 
-                'quantity', 'order_date', 'delivery_address', 'payment_method', 
-                'delivery_status', 'replacement_eligible_until', 'refund_eligible_until'
-            ]
-
-            if os.path.exists('user_orders.csv'):
-                orders_df = pd.read_csv('user_orders.csv')
-            else:
-                orders_df = pd.DataFrame(columns=pd.Index(order_columns))
-
-            new_orders = []
-            for item in self.cart:
-                order_item = {
-                    'order_id': order_id,
-                    'user_id': self.current_user['user_id'],
-                    'product_id': item['product_id'],
-                    'product_name': item['name'],
-                    'price_inr': item['price'],
-                    'quantity': item['quantity'],
-                    'order_date': order_date.isoformat(),
-                    'delivery_address': 'Default Address',
-                    'payment_method': 'Credit Card',
-                    'delivery_status': 'Order Placed - Processing',
-                    'replacement_eligible_until': (order_date + timedelta(days=15)).isoformat(),
-                    'refund_eligible_until': (order_date + timedelta(days=15)).isoformat()
-                }
-                new_orders.append(order_item)
-            
-            if new_orders:
-                new_orders_df = pd.DataFrame(new_orders)
-                updated_orders_df = pd.concat([orders_df, new_orders_df], ignore_index=True)
-                updated_orders_df.to_csv('user_orders.csv', index=False)
-
-            total_amount = self.get_cart_total()
-            
-            # Clear cart
-            self.cart.clear()
-            self.save_user_cart(self.current_user['user_id'], self.cart)
-            
-            return f"Order placed successfully! Order ID: {order_id}. Total: ₹{total_amount:,}"
-            
-        except Exception as e:
-            return f"Checkout error: {str(e)}"
-
-    # New: load Whisper STT model
-    @st.cache_resource
-    def load_stt_model(_self):
-        """Load the Whisper tiny model for speech-to-text."""
-        try:
-            model = whisper.load_model("tiny")
-            return model
-        except Exception as e:
-            st.error(f"Error loading Whisper model: {e}")
-            return None
-
-    # New: transcribe audio bytes using Whisper
-    def transcribe_audio(self, audio_input, input_sample_rate: int = 44100) -> str:
-        """Convert audio input (numpy array or WAV/MP3 bytes) to text."""
-        try:
-            if self.stt_model is None or audio_input is None or len(audio_input) == 0:
-                return ""
-
-            import numpy as np
-            import wave
-
-            # If the input is already a NumPy array from audiorecorder
-            if isinstance(audio_input, np.ndarray):
-                audio_array = audio_input.astype(np.int16)
-            else:
-                # Assume bytes-like object containing WAV data
-                with wave.open(io.BytesIO(audio_input), 'rb') as wf:
-                    frames = wf.readframes(wf.getnframes())
-                    audio_array = np.frombuffer(frames, dtype=np.int16)
-
-            # Convert to mono if needed
-            if audio_array.ndim > 1:
-                audio_array = audio_array.mean(axis=1)
-
-            # Resample from input_sample_rate (default 44.1k) to 16k expected by Whisper
-            target_sr = 16000
-            if input_sample_rate != target_sr:
-                audio_array = resample(audio_array, int(len(audio_array) * target_sr / input_sample_rate))
-
-            # Whisper expects float32 in range [-1, 1]
-            audio_float = audio_array.astype(np.float32) / 32768.0
-            result = self.stt_model.transcribe(audio_float.flatten(), language="en", task="transcribe", fp16=False)
-            return result.get("text", "").strip()
-        except Exception as e:
-            st.error(f"Transcription error: {e}")
-            return ""
-
-    # New: text-to-speech using gTTS
-    def synthesize_speech(self, text: str):
-        """Return MP3 audio bytes for the provided text."""
-        try:
-            if not text:
-                return None
-            tts = gTTS(text=text, lang='en')
-            fp = io.BytesIO()
-            tts.write_to_fp(fp)
-            fp.seek(0)
-            return fp.read()
-        except Exception as e:
-            st.error(f"TTS error: {e}")
-            return None
+# Reuse our audio helper functions below but rely on StreamlitWaltzAssistant for business logic.
 
 def main():
     st.title("Waltz AI Shopping Assistant")
@@ -374,9 +111,20 @@ def main():
     
     # Initialize assistant
     if 'assistant' not in st.session_state:
-        st.session_state.assistant = CloudWalmartAssistant()
+        st.session_state.assistant = StreamlitWaltzAssistant()
     
     assistant = st.session_state.assistant
+
+    # Global greeting once immediately after login
+    if assistant.current_user and st.session_state.get('greet_needed', False):
+        greeting_text = "Hello! I'm your Waltz Voice Assistant. How can I help you today?"
+        greeting_audio = assistant.synthesize_speech(greeting_text)
+        import base64
+        if greeting_audio:
+            b64 = base64.b64encode(greeting_audio).decode()
+            st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
+        # Reset flag
+        st.session_state.greet_needed = False
     
     # User authentication
     if not assistant.current_user:
@@ -386,6 +134,8 @@ def main():
         if user_id and st.sidebar.button("Login"):
             if assistant.authenticate_user(user_id):
                 st.sidebar.success(f"Welcome {assistant.current_user['name']}!")
+                # Set flag to trigger greeting on rerun
+                st.session_state.greet_needed = True
                 st.rerun()
             else:
                 st.sidebar.error("Login failed")
@@ -415,22 +165,23 @@ def main():
                 if products:
                     st.success(f"Found {len(products)} products")
                     
-                    for i, product in enumerate(products):
-                        with st.expander(f"{product['product_name']} - ₹{product['price']:,}"):
+                    for i, doc in enumerate(products):
+                        meta = doc.metadata  # type: ignore[attr-defined]
+                        with st.expander(f"{meta.get('product_name')} - ₹{int(meta.get('price', 0)):,}"):
                             col1, col2 = st.columns([3, 1])
                             
                             with col1:
-                                st.write(f"**Category:** {product['category']}")
-                                st.write(f"**Description:** {product['description']}")
-                                st.write(f"**Stock:** {product['stock_quantity']} units")
-                                st.write(f"**Match Score:** {product['similarity']:.2f}")
+                                st.write(f"**Category:** {meta.get('category')}")
+                                st.write(f"**Description:** {meta.get('description')}")
+                                st.write(f"**Stock:** {meta.get('stock_quantity', 0)} units")
+                                st.write(f"**Match Score:** {doc.score:.2f}")
                             
                             with col2:
                                 if st.button(f"Add to Cart", key=f"add_{i}"):
                                     result = assistant.add_to_cart(
-                                        product['product_name'],
-                                        product['price'],
-                                        product['product_id']
+                                        meta.get('product_name'),
+                                        meta.get('price'),
+                                        meta.get('product_id')
                                     )
                                     st.success(result)
                                     st.rerun()
