@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Walmart Voice Assistant - Core functionality for AI-powered shopping assistant
+Waltz Voice Assistant - Core functionality for AI-powered shopping assistant
 """
 
 import sounddevice as sd
@@ -644,7 +644,7 @@ Search Terms: {product_name} {category} {description}
             
         # Enhanced prompt for better voice responses with explicit separation
         template = """
-You are a helpful Walmart shopping assistant with a friendly, conversational voice. 
+You are Waltz, a helpful shopping assistant with a friendly, conversational voice. 
 Help customers find products, manage their cart, and track orders. Speak naturally and clearly.
 
 CRITICAL RULES - NEVER BREAK THESE:
@@ -1510,11 +1510,11 @@ def process_voice():
 
 def voice_interface():
     """Command line voice interface with enhanced workflow"""
-    print("\nWalmart Voice Assistant")
+    print("\nWaltz Voice Assistant")
     print("=" * 50)
     
     # Generic greeting and user authentication
-    assistant.speak("Hello! Welcome to Walmart Voice Assistant. I'm here to help you with your shopping needs.", async_mode=False)
+    assistant.speak("Hello! Welcome to Waltz Voice Assistant. I'm here to help you with your shopping needs.", async_mode=False)
     assistant.speak("To get started, please type your user ID.", async_mode=False)
     print("Please provide your user ID to login (e.g., U001, U002)")
     
@@ -1524,7 +1524,7 @@ def voice_interface():
         try:
             mode = input("Enter your user ID (or type 'q' to quit): ")
             if not isinstance(mode, str) or mode.strip().lower() == "q":
-                print("Thank you for shopping with Walmart!")
+                print("Thank you for shopping with Waltz!")
                 break
                 
             # Try to authenticate user
@@ -1539,7 +1539,7 @@ def voice_interface():
                 assistant.speak("Invalid user ID. Please try again.", async_mode=False)
                 print("Invalid user ID. Available IDs: U001, U002")
         except KeyboardInterrupt:
-            assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
+            assistant.speak("Thank you for shopping with Waltz! Have a great day.", async_mode=False)
             print("\n\nGoodbye!")
             break
     
@@ -1561,8 +1561,8 @@ def voice_interface():
             user_input = input("Press Enter to talk (or type 'q' to quit): ")
             
             if not isinstance(user_input, str) or user_input.strip().lower() == "q":
-                assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
-                print("Thank you for shopping with Walmart!")
+                assistant.speak("Thank you for shopping with Waltz! Have a great day.", async_mode=False)
+                print("Thank you for shopping with Waltz!")
                 break
                 
             # Only record if user pressed Enter (empty input)
@@ -1605,7 +1605,7 @@ def voice_interface():
                 print(f"You typed: {query}")
                 
                 if query.lower() == "q":
-                    print("Thank you for shopping with Walmart!")
+                    print("Thank you for shopping with Waltz!")
                     break
                     
                 # Process query
@@ -1616,7 +1616,7 @@ def voice_interface():
                 assistant.speak(response, async_mode=False)
                 
         except KeyboardInterrupt:
-            assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
+            assistant.speak("Thank you for shopping with Waltz! Have a great day.", async_mode=False)
             print("\n\nGoodbye!")
             break
         except Exception as e:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Streamlit version of Walmart Voice Assistant - Cloud Compatible
+Streamlit version of Waltz Voice Assistant - Cloud Compatible
 """
 
 import streamlit as st
@@ -23,7 +23,7 @@ from scipy.signal import resample
 
 # Page configuration
 st.set_page_config(
-    page_title="Walmart AI Shopping Assistant",
+    page_title="Waltz AI Shopping Assistant",
     page_icon="W",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -369,7 +369,7 @@ class CloudWalmartAssistant:
             return None
 
 def main():
-    st.title("Walmart AI Shopping Assistant")
+    st.title("Waltz AI Shopping Assistant")
     st.markdown("### AI-powered shopping assistant with product search and cart management")
     
     # Initialize assistant
@@ -515,7 +515,7 @@ def main():
 
         # One-time greeting
         if 'greeted' not in st.session_state:
-            greeting_text = "Hello! I'm your Walmart Voice Assistant. How can I help you today?"
+            greeting_text = "Hello! I'm your Waltz Voice Assistant. How can I help you today?"
             greeting_audio = assistant.synthesize_speech(greeting_text)
             st.session_state.history.append({
                 'role': 'assistant',
