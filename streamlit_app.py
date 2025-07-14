@@ -317,16 +317,25 @@ class CloudWalmartAssistant:
             return None
 
     # New: transcribe audio bytes using Whisper
-    def transcribe_audio(self, audio_bytes: bytes) -> str:
-        """Convert raw WAV bytes to text."""
+    def transcribe_audio(self, audio_input) -> str:
+        """Convert audio input (numpy array or WAV/MP3 bytes) to text."""
         try:
-            if self.stt_model is None or not audio_bytes:
+            if self.stt_model is None or audio_input is None or len(audio_input) == 0:
                 return ""
-            import wave
+
             import numpy as np
-            with wave.open(io.BytesIO(audio_bytes), 'rb') as wf:
-                frames = wf.readframes(wf.getnframes())
-                audio_array = np.frombuffer(frames, dtype=np.int16)
+            import wave
+
+            # If the input is already a NumPy array from audiorecorder
+            if isinstance(audio_input, np.ndarray):
+                audio_array = audio_input.astype(np.int16)
+            else:
+                # Assume bytes-like object containing WAV data
+                with wave.open(io.BytesIO(audio_input), 'rb') as wf:
+                    frames = wf.readframes(wf.getnframes())
+                    audio_array = np.frombuffer(frames, dtype=np.int16)
+
+            # Whisper expects float32 in range [-1, 1]
             audio_float = audio_array.astype(np.float32) / 32768.0
             result = self.stt_model.transcribe(audio_float.flatten(), language="en", task="transcribe", fp16=False)
             return result.get("text", "").strip()
@@ -382,7 +391,7 @@ def main():
             st.rerun()
     
     # Main interface tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Search", "Cart", "Orders", "Voice"])
+    tab4, tab1, tab2, tab3 = st.tabs(["Voice", "Search", "Cart", "Orders"])
     
     with tab1:
         st.header("Product Search")
@@ -476,21 +485,62 @@ def main():
     
     with tab4:
         st.header("Voice Assistant")
+
+        # Initialize conversation history in session_state
+        if 'history' not in st.session_state:
+            st.session_state.history = []
+
+        # Display existing conversation
+        for msg in st.session_state.history:
+            if msg['role'] == 'user':
+                with st.chat_message("user"):
+                    st.write(msg['text'])
+                    if msg.get('audio') is not None:
+                        st.audio(msg['audio'], sample_rate=44100 if isinstance(msg['audio'], __import__('numpy').ndarray) else None)
+            else:
+                with st.chat_message("assistant"):
+                    st.write(msg['text'])
+                    if msg.get('audio') is not None:
+                        st.audio(msg['audio'], format="audio/mp3")
+
+        st.divider()
         st.write("Press **Start Recording** and speak your request, then press **Stop Recording**.")
-        audio_bytes = audiorecorder("Start Recording", "Stop Recording")
-        if audio_bytes is not None and len(audio_bytes) > 0:
-            st.audio(audio_bytes, format="audio/wav")
+
+        audio_capture = audiorecorder("Start Recording", "Stop Recording")
+        if audio_capture is not None and len(audio_capture) > 0:
+            import numpy as np
+            # Immediate playback of user audio
+            st.audio(audio_capture, sample_rate=44100)
+
+            # Transcribe
             with st.spinner("Transcribing your speech..."):
-                user_query = assistant.transcribe_audio(audio_bytes)
+                user_query = assistant.transcribe_audio(audio_capture)
+
             if user_query:
-                st.success(f"You said: {user_query}")
+                # Append user message to history
+                st.session_state.history.append({
+                    'role': 'user',
+                    'text': user_query,
+                    'audio': audio_capture,
+                })
+
+                # Generate assistant response
                 with st.spinner("Generating response..."):
                     response_text = assistant.process_query(user_query)
-                st.info(response_text)
+
+                # Synthesize speech
                 with st.spinner("Creating voice response..."):
                     tts_audio = assistant.synthesize_speech(response_text)
-                if tts_audio:
-                    st.audio(tts_audio, format="audio/mp3")
+
+                # Append assistant message
+                st.session_state.history.append({
+                    'role': 'assistant',
+                    'text': response_text,
+                    'audio': tts_audio,
+                })
+
+                # Rerun to display updated history immediately
+                st.rerun()
     
     # Sidebar information
     st.sidebar.header("Quick Stats")
