@@ -169,3 +169,48 @@ git push origin main
 - **Streamlit Docs**: [docs.streamlit.io](https://docs.streamlit.io)
 - **Community Forum**: [discuss.streamlit.io](https://discuss.streamlit.io)
 - **GitHub Issues**: Create issues in your repository 
+
+## The Problem: **Python 3.10+ Required**
+
+**Found in `walmart_assistant.py` line 1181:**
+```python
+target_order: pd.DataFrame | None = None
+```
+
+This line uses **pipe union type annotation syntax** (`|`) which was introduced in **Python 3.10**. This is incompatible with older Python versions.
+
+## Package Version Issues
+
+Additionally, some packages in `requirements.txt` have high version requirements:
+
+- `streamlit==1.28.1` - requires Python 3.8+
+- `pandas==2.0.3` - requires Python 3.8+
+- `transformers==4.35.0` - may require Python 3.8+
+- `torch==2.0.1` - requires Python 3.8+
+
+## The Fix
+
+**Option 1: Change the type annotation (Recommended for compatibility)**
+```python
+<code_block_to_apply_changes_from>
+from typing import Optional, Union
+target_order: Optional[pd.DataFrame] = None
+# OR
+target_order: Union[pd.DataFrame, None] = None
+```
+
+**Option 2: Update project requirements**
+Update the documentation to specify Python 3.10+ minimum requirement.
+
+## Current Streamlit Cloud Compatibility
+
+Streamlit Cloud typically runs Python 3.9 by default, which **does not support** the pipe union syntax (`|`). This is why you're getting deployment errors.
+
+## Recommended Action
+
+I recommend **Option 1** - updating the type annotation to be compatible with Python 3.8+ since:
+1. It maintains broader compatibility
+2. Works with current Streamlit Cloud infrastructure
+3. Doesn't require users to upgrade Python versions
+
+The documentation says "Python 3.8+" but the actual code requires **Python 3.10+** due to that one line using modern union type syntax. 

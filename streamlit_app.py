@@ -15,6 +15,10 @@ import uuid
 from datetime import datetime, timedelta
 import re
 from typing import cast
+from st_audiorecorder import audiorecorder
+from gtts import gTTS
+import whisper
+import io
 
 # Page configuration
 st.set_page_config(
@@ -32,6 +36,7 @@ class CloudWalmartAssistant:
         self.checkout_data = {}
         self.setup_models()
         self.setup_product_search()
+        self.stt_model = self.load_stt_model()
         
     @st.cache_resource
     def setup_models(_self):
@@ -300,6 +305,50 @@ class CloudWalmartAssistant:
         except Exception as e:
             return f"Checkout error: {str(e)}"
 
+    # New: load Whisper STT model
+    @st.cache_resource
+    def load_stt_model(self):
+        """Load the Whisper tiny model for speech-to-text."""
+        try:
+            model = whisper.load_model("tiny")
+            return model
+        except Exception as e:
+            st.error(f"Error loading Whisper model: {e}")
+            return None
+
+    # New: transcribe audio bytes using Whisper
+    def transcribe_audio(self, audio_bytes: bytes) -> str:
+        """Convert raw WAV bytes to text."""
+        try:
+            if self.stt_model is None or not audio_bytes:
+                return ""
+            import wave
+            import numpy as np
+            with wave.open(io.BytesIO(audio_bytes), 'rb') as wf:
+                frames = wf.readframes(wf.getnframes())
+                audio_array = np.frombuffer(frames, dtype=np.int16)
+            audio_float = audio_array.astype(np.float32) / 32768.0
+            result = self.stt_model.transcribe(audio_float.flatten(), language="en", task="transcribe", fp16=False)
+            return result.get("text", "").strip()
+        except Exception as e:
+            st.error(f"Transcription error: {e}")
+            return ""
+
+    # New: text-to-speech using gTTS
+    def synthesize_speech(self, text: str):
+        """Return MP3 audio bytes for the provided text."""
+        try:
+            if not text:
+                return None
+            tts = gTTS(text=text, lang='en')
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            return fp.read()
+        except Exception as e:
+            st.error(f"TTS error: {e}")
+            return None
+
 def main():
     st.title("Walmart AI Shopping Assistant")
     st.markdown("### AI-powered shopping assistant with product search and cart management")
@@ -333,7 +382,7 @@ def main():
             st.rerun()
     
     # Main interface tabs
-    tab1, tab2, tab3 = st.tabs(["Search", "Cart", "Orders"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Search", "Cart", "Orders", "Voice"])
     
     with tab1:
         st.header("Product Search")
@@ -424,6 +473,24 @@ def main():
             if st.button("Latest Order Status"):
                 status = assistant.handle_order_status("latest order")
                 st.text_area("Order Status", status, height=300)
+    
+    with tab4:
+        st.header("Voice Assistant")
+        st.write("Press **Start Recording** and speak your request, then press **Stop Recording**.")
+        audio_bytes = audiorecorder("Start Recording", "Stop Recording")
+        if audio_bytes is not None and len(audio_bytes) > 0:
+            st.audio(audio_bytes, format="audio/wav")
+            with st.spinner("Transcribing your speech..."):
+                user_query = assistant.transcribe_audio(audio_bytes)
+            if user_query:
+                st.success(f"You said: {user_query}")
+                with st.spinner("Generating response..."):
+                    response_text = assistant.process_query(user_query)
+                st.info(response_text)
+                with st.spinner("Creating voice response..."):
+                    tts_audio = assistant.synthesize_speech(response_text)
+                if tts_audio:
+                    st.audio(tts_audio, format="audio/mp3")
     
     # Sidebar information
     st.sidebar.header("Quick Stats")
