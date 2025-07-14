@@ -517,12 +517,17 @@ def main():
         if 'greeted' not in st.session_state:
             greeting_text = "Hello! I'm your Waltz Voice Assistant. How can I help you today?"
             greeting_audio = assistant.synthesize_speech(greeting_text)
+            st.session_state.greeted = True
+            import base64
+            if greeting_audio:
+                b64 = base64.b64encode(greeting_audio).decode()
+                audio_html = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>'
+                st.markdown(audio_html, unsafe_allow_html=True)
             st.session_state.history.append({
                 'role': 'assistant',
                 'text': greeting_text,
                 'audio': greeting_audio,
             })
-            st.session_state.greeted = True
 
         st.divider()
         st.write("Press **Start Recording** and speak your request, then press **Stop Recording**.")
