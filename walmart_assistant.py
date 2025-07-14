@@ -389,12 +389,14 @@ Search Terms: {product_name} {category} {description}
             # Load addresses
             addresses_df = pd.read_csv("user_addresses.csv")
             user_addresses = addresses_df[addresses_df['user_id'] == user_id]
-            self.current_user['addresses'] = user_addresses.to_dict(orient='records')
+            self.current_user['addresses'] = [row for _, row in user_addresses.iterrows()]
+            print(f"[DEBUG] Loaded {len(self.current_user['addresses'])} addresses for user {user_id}")
 
             # Load payment methods
             payments_df = pd.read_csv("user_payment_methods.csv")
             user_payments = payments_df[payments_df['user_id'] == user_id]
-            self.current_user['payment_methods'] = user_payments.to_dict(orient='records')
+            self.current_user['payment_methods'] = [row for _, row in user_payments.iterrows()]
+            print(f"[DEBUG] Loaded {len(self.current_user['payment_methods'])} payment methods for user {user_id}")
 
             self.user_session["customer_id"] = user_id
             
@@ -569,7 +571,7 @@ Search Terms: {product_name} {category} {description}
             return self.handle_login(query)
             
         # Handle order status queries
-        if any(keyword in query.lower() for keyword in ["order status", "where is my order", "track order", "order tracking"]):
+        if any(keyword in query.lower() for keyword in ["order status", "where is my order", "track order", "order tracking", "when will my order be delivered", "delivery status", "when will it arrive"]):
             print("[DEBUG] Intent: handle_order_status")
             return self.handle_order_status(query)
             
@@ -595,6 +597,11 @@ Search Terms: {product_name} {category} {description}
             print("[DEBUG] Intent: handle_add_to_cart")
             return self.handle_add_to_cart(query)
             
+        # Handle cart questions (why is X in my cart, what's in my cart, etc.)
+        if any(keyword in query.lower() for keyword in ["why is", "what's in my cart", "what is in my cart", "cart has", "cart contains"]) and "cart" in query.lower():
+            print("[DEBUG] Intent: handle_show_cart")
+            return self.handle_show_cart(query)
+            
         if "remove" in query.lower() and "cart" in query.lower():
             print("[DEBUG] Intent: handle_remove_from_cart")
             return self.handle_remove_from_cart(query)
@@ -603,6 +610,11 @@ Search Terms: {product_name} {category} {description}
             print("[DEBUG] Intent: handle_show_cart")
             return self.handle_show_cart(query)
             
+        # Handle order history queries
+        if any(keyword in query.lower() for keyword in ["show my orders", "order history", "past orders", "my orders", "list orders"]):
+            print("[DEBUG] Intent: list_user_orders")
+            return self.list_user_orders()
+
         # Search for products
         print("[DEBUG] Intent: General product search")
         products = self.search_products(query)
@@ -833,9 +845,27 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         return result
         
     def handle_show_cart(self, query):
-        """Handle showing cart contents"""
+        """Handle showing cart contents and answering cart-related questions"""
         # Debug cart state
         self.debug_cart_state()
+        
+        # Check if user is asking about specific items in cart
+        query_lower = query.lower()
+        if "why is" in query_lower and "cart" in query_lower:
+            # User is asking why something is in their cart
+            if not self.cart:
+                return "Your cart is empty, so there's nothing to explain."
+            
+            # Extract potential product name from query
+            words = query_lower.split()
+            for i, word in enumerate(words):
+                if word in ["converse", "headphones", "laptop", "phone", "shoes", "shirt", "pants"]:
+                    # Check if this item is actually in cart
+                    for item in self.cart:
+                        if word.lower() in item['name'].lower():
+                            return f"{item['name']} is in your cart because you added it earlier. You can remove it by saying 'remove from cart' if you don't want it."
+            
+            return "I can see items in your cart, but I'm not sure which specific item you're asking about. Here's what's in your cart: " + self.get_cart_contents()
         
         return self.get_cart_contents()
         
@@ -907,7 +937,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
 
         response += "Please choose from your saved addresses: "
         for i, addr in enumerate(addresses):
-            response += f"Say '{i+1}' for {addr['type']} address at {addr['street']}, {addr['city']}. "
+            response += f"Say '{i+1}' or '{self.number_to_word(i+1)}' for {addr['type']} address at {addr['street']}, {addr['city']}. "
         
         response += "Or say 'cancel' to stop the order."
         print(f"[DEBUG] Address prompt: {response}")
@@ -921,11 +951,32 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         print(f"[DEBUG] Handling address selection. Found {len(addresses)} addresses. Query: '{query}'")
         
         try:
-            # Look for numbers in the query
-            match = re.search(r'(\d+)', query)
-            if not match:
-                raise ValueError("No number found in query")
-            choice = int(match.group()) - 1
+            # Handle word numbers (one, two, three, etc.) and ordinal words
+            word_to_number = {
+                'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+                'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+                'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10
+            }
+            
+            query_lower = query.lower().strip()
+            
+            # First try to match word numbers or ordinal words
+            choice = None
+            for word, num in word_to_number.items():
+                if word in query_lower:
+                    choice = num
+                    break
+            
+            # If no word/ordinal number found, try to find digits
+            if choice is None:
+                match = re.search(r'(\d+)', query)
+                if match:
+                    choice = int(match.group())
+                else:
+                    raise ValueError("No number found in query")
+            
+            choice = choice - 1  # Convert to 0-based index
             print(f"[DEBUG] User selected address choice: {choice + 1}")
 
             if addresses and 0 <= choice < len(addresses):
@@ -960,9 +1011,9 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         response += "Please choose your payment method: "
         for i, pay in enumerate(payments):
             if pay['type'] == 'Credit Card':
-                response += f"Say '{i+1}' for Credit Card ending in {pay['last4']}. "
+                response += f"Say '{i+1}' or '{self.number_to_word(i+1)}' for Credit Card ending in {pay['last4']}. "
             else:
-                response += f"Say '{i+1}' for {pay['type']}. "
+                response += f"Say '{i+1}' or '{self.number_to_word(i+1)}' for {pay['type']}. "
 
         response += "Or say 'cancel' to stop the order."
         print(f"[DEBUG] Payment prompt: {response}")
@@ -976,11 +1027,32 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         print(f"[DEBUG] Handling payment selection. Found {len(payments)} methods. Query: '{query}'")
 
         try:
-            # Look for numbers in the query
-            match = re.search(r'(\d+)', query)
-            if not match:
-                raise ValueError("No number found in query")
-            choice = int(match.group()) - 1
+            # Handle word numbers (one, two, three, etc.) and ordinal words
+            word_to_number = {
+                'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+                'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+                'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10
+            }
+            
+            query_lower = query.lower().strip()
+            
+            # First try to match word numbers or ordinal words
+            choice = None
+            for word, num in word_to_number.items():
+                if word in query_lower:
+                    choice = num
+                    break
+            
+            # If no word/ordinal number found, try to find digits
+            if choice is None:
+                match = re.search(r'(\d+)', query)
+                if match:
+                    choice = int(match.group())
+                else:
+                    raise ValueError("No number found in query")
+            
+            choice = choice - 1  # Convert to 0-based index
             print(f"[DEBUG] User selected payment choice: {choice + 1}")
             
             if payments and 0 <= choice < len(payments):
@@ -1053,7 +1125,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
                     'order_date': order_date.isoformat(),
                     'delivery_address': delivery_address,
                     'payment_method': payment_method,
-                    'delivery_status': 'Order Placed',
+                    'delivery_status': 'Order Placed - Processing',
                     'replacement_eligible_until': (order_date + timedelta(days=15)).isoformat(),
                     'refund_eligible_until': (order_date + timedelta(days=15)).isoformat()
                 }
@@ -1089,7 +1161,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             return f"Sorry, there was an error placing your order. Please try again. Error: {str(e)}"
 
     def handle_order_status(self, query):
-        """Handle order status and tracking queries. Can find by order ID or get the latest."""
+        """Handle order status and tracking queries with dynamic delivery estimates."""
         if not self.current_user:
             return "Please login first to check your order status."
             
@@ -1125,11 +1197,33 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             if target_order is None or target_order.empty:
                 return "Could not find the specified order."
 
-            # Aggregate products for the response
-            delivery_status = cast(pd.Series, target_order['delivery_status']).iloc[0]
+            # Get order details and calculate dynamic delivery status
+            order_date_str = cast(pd.Series, target_order['order_date']).iloc[0]
+            order_date = datetime.fromisoformat(order_date_str)
+            days_since_order = (datetime.now() - order_date).days
+            
+            # Calculate dynamic delivery status based on days since order
+            if days_since_order == 0:
+                delivery_status = "Order Placed - Processing"
+                estimated_delivery = "2-3 business days"
+            elif days_since_order == 1:
+                delivery_status = "Order Confirmed - Shipped"
+                estimated_delivery = "1-2 business days"
+            elif days_since_order == 2:
+                delivery_status = "In Transit"
+                estimated_delivery = "Tomorrow or next business day"
+            elif days_since_order >= 3:
+                delivery_status = "Out for Delivery"
+                estimated_delivery = "Today or tomorrow"
+            else:
+                delivery_status = "Order Placed"
+                estimated_delivery = "3-5 business days"
+
             total_amount = (cast(pd.Series, target_order['price_inr']) * cast(pd.Series, target_order['quantity'])).sum()
 
             response += f"Status: {delivery_status}\n"
+            response += f"Order Date: {order_date.strftime('%B %d, %Y')}\n"
+            response += f"Estimated Delivery: {estimated_delivery}\n"
             response += f"Total: ₹{total_amount:,.2f}\n"
             response += "Products in this order:\n"
             for _, item in target_order.iterrows():
@@ -1243,6 +1337,14 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         print(f"Checkout state: {self.checkout_state}")
         print(f"==================\n")
         
+    def number_to_word(self, num):
+        """Convert number to word for better voice interaction"""
+        word_numbers = {
+            1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+            6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
+        }
+        return word_numbers.get(num, str(num))
+        
     def validate_cart_operation(self, operation):
         """Validate cart operations"""
         if not self.current_user:
@@ -1252,6 +1354,35 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             return False, "Your cart is empty."
             
         return True, "OK"
+
+    def list_user_orders(self):
+        """Return a summary of all current and past orders for the logged-in user."""
+        if not self.current_user:
+            return "Please login first to view your orders."
+        try:
+            if not os.path.exists('user_orders.csv'):
+                return f"Hello {self.current_user['name']}, you have no past orders."
+            orders_df = pd.read_csv('user_orders.csv')
+            user_orders = orders_df[orders_df['user_id'] == self.current_user['user_id']]
+            if user_orders.empty:
+                return f"Hello {self.current_user['name']}, you don't have any orders yet."
+            # Sort by order_date descending
+            user_orders = user_orders.copy()
+            user_orders['order_date'] = user_orders['order_date'].astype(str)
+            user_orders = user_orders.sort_values(by="order_date", ascending=False)  # type: ignore
+            response = f"Here are your orders, most recent first:\n"
+            for idx, (order_id, group) in enumerate(user_orders.groupby('order_id')):
+                order_date = group.iloc[0]['order_date']
+                delivery_status = group.iloc[0]['delivery_status']
+                total = (group['price_inr'] * group['quantity']).sum()
+                response += f"Order ID: {order_id} | Date: {order_date[:10]} | Status: {delivery_status} | Total: ₹{total:,.0f}\n"
+                response += "  Products: "
+                response += ", ".join([f"{row['product_name']} (x{row['quantity']})" for _, row in group.iterrows()])
+                response += "\n"
+            return response.strip()
+        except Exception as e:
+            print(f"Error listing user orders: {e}")
+            return "Sorry, I couldn't retrieve your order history. Please try again."
 
 # Create global assistant instance
 assistant = WalmartAssistant()
@@ -1408,6 +1539,7 @@ def voice_interface():
                 assistant.speak("Invalid user ID. Please try again.", async_mode=False)
                 print("Invalid user ID. Available IDs: U001, U002")
         except KeyboardInterrupt:
+            assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
             print("\n\nGoodbye!")
             break
     
@@ -1429,6 +1561,7 @@ def voice_interface():
             user_input = input("Press Enter to talk (or type 'q' to quit): ")
             
             if not isinstance(user_input, str) or user_input.strip().lower() == "q":
+                assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
                 print("Thank you for shopping with Walmart!")
                 break
                 
@@ -1483,6 +1616,7 @@ def voice_interface():
                 assistant.speak(response, async_mode=False)
                 
         except KeyboardInterrupt:
+            assistant.speak("Thank you for shopping with Walmart! Have a great day.", async_mode=False)
             print("\n\nGoodbye!")
             break
         except Exception as e:

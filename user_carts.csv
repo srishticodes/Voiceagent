@@ -1,2 +1,4 @@
 cart_id,user_id,product_id,product_name,price_inr,quantity,added_at,status ,status
 05265311-03a7-450f-b8bf-0ae99d4094ad,U002,P001,Sony WH-1000XM4 Noise Cancelling Headphones,24999.0,1,2025-07-14T02:55:31.844734,,active
+a21f6fac-460f-4c4e-a724-08653ebaf7f1,U002,P017,Beats Studio3 Wireless Headphones,24999.0,1,2025-07-14T09:23:42.897357,,active
+d64d9f6d-744a-4223-829c-0e04bd0bc851,U001,P035,Converse Chuck Taylor All Star,3999.0,1,2025-07-14T09:48:26.190830,,active

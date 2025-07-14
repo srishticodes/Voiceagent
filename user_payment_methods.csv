@@ -1,4 +1,4 @@
 payment_id,user_id,type,last4,expiry,email
-P001,U001,Credit Card,1234,12/25,,
+P001,U001,Credit Card,1234,12/25,
 P002,U001,PayPal,,,john.doe@email.com
-P003,U002,Credit Card,5678,06/26,, 
+P003,U002,Credit Card,5678,06/26, 

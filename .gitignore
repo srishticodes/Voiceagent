@@ -114,3 +114,32 @@ dmypy.json
 # Ollama models (if any)
 .ollama/ 
 .cursorrules
+
+# Credentials and sensitive files
+*.json
+diptak_tts*.json
+credentials.json
+service-account*.json
+
+# Streamlit
+.streamlit/
+streamlit_cache/
+
+# Audio files
+*.wav
+*.mp3
+input.wav
+web_input.wav
+
+# Database files
+*.sqlite3
+*.db
+chroma.sqlite3
+walmart_inventory_db/
+walmart_products_db/
+chrome_langchain_db/
+
+# Temporary files
+temp/
+tmp/
+*.tmp

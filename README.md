@@ -1,54 +1,76 @@
-# Walmart Voice Assistant
+# Walmart Voice AI Assistant
 
-A clean, AI-powered shopping assistant that delivers a hyper-personalized, interactive experience to Walmart customers. Features voice and text input with intelligent product search and shopping cart management.
+An intelligent voice-powered shopping assistant that provides a natural conversational interface for product search, cart management, order placement, and order tracking. Built with AI models for speech recognition, natural language processing, and vector search capabilities.
 
 ## Features
 
-- **Voice & Text Input**: Dual input modes for maximum accessibility
-- **AI-Powered Product Search**: Semantic search through Walmart's product database
-- **Delivery Status Tracking**: Real-time delivery status for all orders
-- **Shopping Cart Management**: Add, view, and manage items in your cart
-- **Product Recommendations**: Intelligent suggestions based on user queries
-- **Modern Web Interface**: Beautiful, responsive UI with real-time updates
-- **Voice Output**: Text-to-speech responses for hands-free interaction
+### 🛒 Shopping & Cart Management
+- **Product Search**: AI-powered semantic search across 2000+ products
+- **Add to Cart**: Voice commands like "Add Sony headphones to cart"
+- **Cart Management**: View, modify, and clear shopping cart
+- **Smart Transcription**: Handles common speech errors (e.g., "card" vs "cart")
 
-## Project Structure
+### 📦 Order Management
+- **Order Placement**: Complete checkout flow with address and payment selection
+- **Dynamic Order Tracking**: Real-time status updates that change daily
+- **Order History**: View all current and past orders
+- **Delivery Estimates**: Smart delivery predictions based on order age
 
-```
-Voice-AI-Agent/
-├── walmart_assistant.py          # Main application (voice + web)
-├── templates/
-│   └── index.html               # Web interface template
-├── walmart_products_db/         # Vector database storage
-├── walmart_orders_500plus.csv   # Walmart product data
-├── requirements.txt              # Python dependencies
-└── README.md                    # This file
-```
+### 🎤 Voice Interface
+- **Speech-to-Text**: Whisper AI model for accurate transcription
+- **Text-to-Speech**: Google Cloud TTS with natural voice responses
+- **Voice Commands**: Natural language processing for intuitive interaction
+- **Conversation Flow**: Context-aware multi-step processes (checkout, etc.)
+
+### 📊 Data Management
+- **User Authentication**: Secure user login system
+- **Persistent Storage**: CSV-based data storage for users, orders, and carts
+- **Address & Payment**: Saved user addresses and payment methods
+- **Order Analytics**: 15-day return/refund eligibility tracking
 
 ## Installation
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Prerequisites
+- Python 3.8+
+- Microphone for voice input
+- Google Cloud TTS credentials (optional, fallback TTS available)
+- Ollama with required models
 
-2. **Set up Ollama**:
-   ```bash
-   # Install Ollama (https://ollama.ai/)
-   ollama serve
-   ollama pull gemma3:1b
-   ollama pull mxbai-embed-large
-   ```
+### Setup
 
-3. **Set up Google Cloud TTS** (optional, for voice output):
-   ```bash
-   # Set up Google Cloud credentials
-   export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
-   ```
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd Voice-AI-Agent
+```
+
+2. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Install Ollama models**
+```bash
+ollama pull gemma3:1b
+ollama pull mxbai-embed-large
+```
+
+4. **Setup Google Cloud TTS (Optional)**
+- Place your Google Cloud credentials JSON file in the project root
+- Name it `diptak_tts[1].json` or update the path in code
+
+5. **Initialize data files**
+The following CSV files should be present:
+- `users.csv` - User accounts
+- `user_addresses.csv` - User delivery addresses  
+- `user_payment_methods.csv` - User payment methods
+- `walmart_inventory.csv` - Product inventory
+- `user_orders.csv` - Order history (created automatically)
+- `user_carts.csv` - Shopping carts (created automatically)
 
 ## Usage
 
-### Voice Interface
+### Voice Interface (Recommended)
 ```bash
 python walmart_assistant.py
 ```
@@ -57,49 +79,161 @@ python walmart_assistant.py
 ```bash
 python walmart_assistant.py web
 ```
-Then visit `http://localhost:5000`
 
-## Example Interactions
+### Streamlit Interface
+```bash
+streamlit run streamlit_app.py
+```
+
+## Voice Commands
 
 ### Product Search
 - "Find me headphones"
-- "Show me electronics"
-- "I need a laptop"
-- "What phones do you have?"
+- "What laptops do you have?"
+- "Show me gaming chairs"
 
-### Shopping Cart
-- "Add iPhone to my cart"
+### Cart Management
+- "Add Sony headphones to cart"
 - "Show my cart"
-- "Clear my cart"
-- "What's in my cart?"
+- "Remove from cart"
+- "Why is [item] in my cart?"
 
-## Technical Architecture
+### Order Management
+- "Place order" / "Checkout"
+- "Where is my order?"
+- "When will my order be delivered?"
+- "Show my orders" / "Order history"
+- "Check refund status"
 
-- **Voice Processing**: Whisper (STT) + Google Cloud TTS
-- **AI/ML**: Ollama with Gemma 3B + Vector embeddings
-- **Web Framework**: Flask + Modern HTML/CSS/JS
-- **Data**: Mock Walmart product database with 500+ products
-- **Vector Database**: Chroma with semantic search
+### General
+- "What do you recommend?"
+- "Stop speaking" (interrupt current speech)
+
+## User Authentication
+
+Login with predefined user IDs:
+- **U001**: John Doe
+- **U002**: Jane Smith
+
+Each user has:
+- Saved addresses
+- Payment methods
+- Personal shopping cart
+- Order history
+
+## Architecture
+
+### Core Components
+- **WalmartAssistant**: Main application class
+- **VoiceManager**: Handles speech-to-text and text-to-speech
+- **Vector Database**: Chroma DB for semantic product search
+- **CSV Storage**: Persistent data storage system
+
+### AI Models
+- **Speech Recognition**: OpenAI Whisper (tiny model)
+- **Language Model**: Ollama Gemma3:1b
+- **Embeddings**: mxbai-embed-large
+- **Text-to-Speech**: Google Cloud TTS with fallback
+
+### Data Flow
+1. Voice input → Whisper transcription
+2. Text query → Intent classification
+3. Intent → Appropriate handler function
+4. Response generation → TTS output
+5. Data persistence → CSV files
+
+## Configuration
+
+### Voice Settings
+- Sample rate: 16kHz (recording), 24kHz (playback)
+- Model: Whisper tiny (for speed)
+- TTS: Google Cloud with pyttsx3 fallback
+
+### Database
+- Vector store: Chroma (persistent)
+- Product search: Top 5 results
+- Embedding model: mxbai-embed-large
+
+## Deployment
+
+### Local Development
+```bash
+python walmart_assistant.py
+```
+
+### Streamlit Cloud
+1. Push code to GitHub
+2. Connect repository at [share.streamlit.io](https://share.streamlit.io)
+3. Set entry point: `streamlit_app.py`
+4. Deploy automatically
+
+### Requirements for Deployment
+- All CSV data files
+- Google Cloud credentials (if using)
+- Ollama models accessible
+- Sufficient memory for AI models
+
+## File Structure
+
+```
+Voice-AI-Agent/
+├── walmart_assistant.py      # Main application
+├── streamlit_app.py          # Streamlit web interface  
+├── requirements.txt          # Python dependencies
+├── users.csv                 # User accounts
+├── user_addresses.csv        # User addresses
+├── user_payment_methods.csv  # Payment methods
+├── walmart_inventory.csv     # Product catalog
+├── user_orders.csv          # Order history
+├── user_carts.csv           # Shopping carts
+├── diptak_tts[1].json       # Google Cloud credentials
+└── walmart_inventory_db/    # Vector database
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Ollama not running**:
-   ```bash
-   ollama serve
-   ```
+**Audio not working**
+- Check microphone permissions
+- Ensure pygame audio system is initialized
+- Verify Google Cloud TTS credentials
 
-2. **Model not found**:
-   ```bash
-   ollama pull gemma3:1b
-   ollama pull mxbai-embed-large
-   ```
+**Models not loading**
+- Install Ollama and required models
+- Check available memory (models require ~2GB)
+- Verify Ollama service is running
 
-3. **Google TTS errors**:
-   - Ensure Google Cloud credentials are set
-   - Check billing is enabled for the project
+**CSV file errors**
+- Ensure all required CSV files exist
+- Check file permissions
+- Verify CSV format and headers
+
+**Voice recognition issues**
+- Speak clearly and wait for prompt
+- Check microphone input levels
+- Try text input for testing
+
+### Performance Tips
+- Use "tiny" Whisper model for faster transcription
+- Close other applications to free memory
+- Use SSD storage for faster model loading
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes and test thoroughly
+4. Submit a pull request
 
 ## License
 
 This project is for educational and demonstration purposes.
+
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section
+2. Review error logs in console
+3. Ensure all dependencies are installed
+4. Verify CSV data file formats 
