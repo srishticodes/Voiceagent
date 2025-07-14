@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta
 import re
 from typing import cast
-from st_audiorecorder import audiorecorder
+from audiorecorder import audiorecorder
 from gtts import gTTS
 import whisper
 import io
