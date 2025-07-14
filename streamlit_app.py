@@ -307,7 +307,7 @@ class CloudWalmartAssistant:
 
     # New: load Whisper STT model
     @st.cache_resource
-    def load_stt_model(self):
+    def load_stt_model(_self):
         """Load the Whisper tiny model for speech-to-text."""
         try:
             model = whisper.load_model("tiny")
