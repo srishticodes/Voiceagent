@@ -34,7 +34,6 @@ An intelligent voice-powered shopping assistant that provides a natural conversa
 - Python 3.8+
 - Microphone for voice input
 - Google Cloud TTS credentials (optional, fallback TTS available)
-- Ollama with required models
 
 ### Setup
 
@@ -49,15 +48,9 @@ cd Voice-AI-Agent
 pip install -r requirements.txt
 ```
 
-3. **Install Ollama models**
-```bash
-ollama pull gemma3:1b
-ollama pull mxbai-embed-large
-```
-
 4. **Setup Google Cloud TTS (Optional)**
 - Place your Google Cloud credentials JSON file in the project root
-- Name it `diptak_tts[1].json` or update the path in code
+
 
 5. **Initialize data files**
 The following CSV files should be present:
@@ -65,20 +58,16 @@ The following CSV files should be present:
 - `user_addresses.csv` - User delivery addresses  
 - `user_payment_methods.csv` - User payment methods
 - `waltz_inventory.csv` - Product inventory
-- `user_orders.csv` - Order history (created automatically)
-- `user_carts.csv` - Shopping carts (created automatically)
+- `user_orders.csv` - Order history 
+- `user_carts.csv` - Shopping carts 
 
 ## Usage
 
-### Voice Interface (Recommended)
+### Voice Interface
 ```bash
 python waltz_assistant.py
 ```
 
-### Web Interface
-```bash
-python waltz_assistant.py web
-```
 
 ## Voice Commands
 
@@ -126,8 +115,8 @@ Each user has:
 
 ### AI Models
 - **Speech Recognition**: OpenAI Whisper (tiny model)
-- **Language Model**: Ollama Gemma3:1b
-- **Embeddings**: mxbai-embed-large
+- **Language Model**: Google Gemini (via Google AI Studio)
+- **Embeddings**: Google Generative AI Embeddings
 - **Text-to-Speech**: Google Cloud TTS with fallback
 
 ### Data Flow
@@ -147,7 +136,7 @@ Each user has:
 ### Database
 - Vector store: Chroma (persistent)
 - Product search: Top 5 results
-- Embedding model: mxbai-embed-large
+- Embedding model: Google Generative AI Embeddings
 
 ## Deployment
 
@@ -159,53 +148,25 @@ python waltz_assistant.py
 ### Requirements for Deployment
 - All CSV data files
 - Google Cloud credentials (if using)
-- Ollama models accessible
 - Sufficient memory for AI models
 
 ## File Structure
 
 ```
 Voice-AI-Agent/
-├── waltz_assistant.py      # Main application
-├── requirements.txt          # Python dependencies
-├── users.csv                 # User accounts
-├── user_addresses.csv        # User addresses
-├── user_payment_methods.csv  # Payment methods
-├── waltz_inventory.csv     # Product catalog
-├── user_orders.csv          # Order history
-├── user_carts.csv           # Shopping carts
-├── diptak_tts[1].json       # Google Cloud credentials
-└── waltz_inventory_db/    # Vector database
+├── waltz_assistant.py         # Main application (Flask, AI, all logic)
+├── requirements.txt           # Python dependencies
+├── waltz_inventory.csv        # Product catalog (for ChromaDB)
+├── waltz_inventory_db/        # ChromaDB vector database (products)
+├── templates/
+│   └── waltz.html             # Web UI template
+├── index.html                 # Web UI
+├── app.py                     #  Flask app
+├── .gitignore                 # Git ignore rules
+├── venv/                      # Python virtual environment
+└── voiceaiagent-*.json        # Google Cloud credentials 
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-**Audio not working**
-- Check microphone permissions
-- Ensure pygame audio system is initialized
-- Verify Google Cloud TTS credentials
-
-**Models not loading**
-- Install Ollama and required models
-- Check available memory (models require ~2GB)
-- Verify Ollama service is running
-
-**CSV file errors**
-- Ensure all required CSV files exist
-- Check file permissions
-- Verify CSV format and headers
-
-**Voice recognition issues**
-- Speak clearly and wait for prompt
-- Check microphone input levels
-- Try text input for testing
-
-### Performance Tips
-- Use "tiny" Whisper model for faster transcription
-- Close other applications to free memory
-- Use SSD storage for faster model loading
 
 ## Contributing
 
@@ -218,10 +179,3 @@ Voice-AI-Agent/
 
 This project is for educational and demonstration purposes.
 
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review error logs in console
-3. Ensure all dependencies are installed
-4. Verify CSV data file formats 
