@@ -2,3 +2,5 @@ order_id,user_id,cart_id,total_amount,order_date,delivery_address,payment_method
 ORD001,U001,CART001,29997.0,2024-01-15T12:00:00,123 Main Street New York NY 10001,Credit Card,Confirmed,In Transit,2024-01-18T14:00:00,,,,,,
 ORD002,U002,CART002,130746.0,2024-01-15T13:30:00,789 Oak Drive Los Angeles CA 90210,Credit Card,Confirmed,Delivered,2024-01-17T10:30:00 ,,,,,,
 ORD-A9117325,U001,,,2025-07-14T09:45:56.910113,"456 Business Ave, New York",Credit Card,,Order Placed,,P001,Sony WH-1000XM4 Noise Cancelling Headphones,24999.0,1.0,2025-07-29T09:45:56.910113,2025-07-29T09:45:56.910113
+ORD-DB4672BA,U001,,,2025-07-14T18:38:46.869303,"456 Business Ave, New York",Credit Card,,Order Placed - Processing,,P035,Converse Chuck Taylor All Star,3999.0,1.0,2025-07-29T18:38:46.869303,2025-07-29T18:38:46.869303
+ORD-DB4672BA,U001,,,2025-07-14T18:38:46.869303,"456 Business Ave, New York",Credit Card,,Order Placed - Processing,,P001,Sony WH-1000XM4 Noise Cancelling Headphones,24999.0,1.0,2025-07-29T18:38:46.869303,2025-07-29T18:38:46.869303

@@ -143,3 +143,6 @@ chrome_langchain_db/
 temp/
 tmp/
 *.tmp
+venv/
+__pycache__/
+voiceaiagent-466213-ba2cbb1ca469.json

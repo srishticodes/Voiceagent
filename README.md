@@ -1,4 +1,4 @@
-# Walmart Voice AI Assistant
+# Waltz Voice AI Assistant
 
 An intelligent voice-powered shopping assistant that provides a natural conversational interface for product search, cart management, order placement, and order tracking. Built with AI models for speech recognition, natural language processing, and vector search capabilities.
 
@@ -64,7 +64,7 @@ The following CSV files should be present:
 - `users.csv` - User accounts
 - `user_addresses.csv` - User delivery addresses  
 - `user_payment_methods.csv` - User payment methods
-- `walmart_inventory.csv` - Product inventory
+- `waltz_inventory.csv` - Product inventory
 - `user_orders.csv` - Order history (created automatically)
 - `user_carts.csv` - Shopping carts (created automatically)
 
@@ -72,17 +72,12 @@ The following CSV files should be present:
 
 ### Voice Interface (Recommended)
 ```bash
-python walmart_assistant.py
+python waltz_assistant.py
 ```
 
 ### Web Interface
 ```bash
-python walmart_assistant.py web
-```
-
-### Streamlit Interface
-```bash
-streamlit run streamlit_app.py
+python waltz_assistant.py web
 ```
 
 ## Voice Commands
@@ -124,7 +119,7 @@ Each user has:
 ## Architecture
 
 ### Core Components
-- **WalmartAssistant**: Main application class
+- **WaltzAssistant**: Main application class
 - **VoiceManager**: Handles speech-to-text and text-to-speech
 - **Vector Database**: Chroma DB for semantic product search
 - **CSV Storage**: Persistent data storage system
@@ -158,14 +153,8 @@ Each user has:
 
 ### Local Development
 ```bash
-python walmart_assistant.py
+python waltz_assistant.py
 ```
-
-### Streamlit Cloud
-1. Push code to GitHub
-2. Connect repository at [share.streamlit.io](https://share.streamlit.io)
-3. Set entry point: `streamlit_app.py`
-4. Deploy automatically
 
 ### Requirements for Deployment
 - All CSV data files
@@ -177,17 +166,16 @@ python walmart_assistant.py
 
 ```
 Voice-AI-Agent/
-├── walmart_assistant.py      # Main application
-├── streamlit_app.py          # Streamlit web interface  
+├── waltz_assistant.py      # Main application
 ├── requirements.txt          # Python dependencies
 ├── users.csv                 # User accounts
 ├── user_addresses.csv        # User addresses
 ├── user_payment_methods.csv  # Payment methods
-├── walmart_inventory.csv     # Product catalog
+├── waltz_inventory.csv     # Product catalog
 ├── user_orders.csv          # Order history
 ├── user_carts.csv           # Shopping carts
 ├── diptak_tts[1].json       # Google Cloud credentials
-└── walmart_inventory_db/    # Vector database
+└── waltz_inventory_db/    # Vector database
 ```
 
 ## Troubleshooting

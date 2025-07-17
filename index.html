@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walmart Voice Assistant</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .assistant-message {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+        }
+
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .text-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .text-input:focus {
+            border-color: #007bff;
+        }
+
+        .voice-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+        .voice-btn.recording {
+            background: #28a745;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .cart-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .cart-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .cart-count {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .cart-items {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+
+        .cart-total {
+            font-weight: bold;
+            text-align: right;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .clear-cart-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .clear-cart-btn:hover {
+            background: #c82333;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .chat-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-shopping-cart"></i> Walmart Voice Assistant</h1>
+            <p>Your AI-powered shopping companion</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="chat-container" id="chatContainer">
+                <div class="message assistant-message">
+                    Hello! I'm your Walmart shopping assistant. I can help you find products, get recommendations, and manage your shopping cart. How can I assist you today?
+                </div>
+            </div>
+            
+            <div class="input-section">
+                <input type="text" id="messageInput" class="text-input" placeholder="Type your message here..." onkeypress="handleKeyPress(event)">
+                <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceRecording()">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+            
+            <div class="cart-section">
+                <div class="cart-header">
+                    <span class="cart-title">Shopping Cart</span>
+                    <span class="cart-count" id="cartCount">0</span>
+                </div>
+                <div class="cart-items" id="cartItems">
+                    <div style="text-align: center; color: #666; font-style: italic;">
+                        Your cart is empty
+                    </div>
+                </div>
+                <div class="cart-total" id="cartTotal">
+                    Total: $0.00
+                </div>
+                <button class="clear-cart-btn" onclick="clearCart()">Clear Cart</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCart();
+        });
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // Show loading message
+            const loadingId = addMessage('Thinking...', 'assistant', 'loading');
+            
+            // Send to backend
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                removeMessage(loadingId);
+                
+                if (data.error) {
+                    addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                } else {
+                    addMessage(data.response, 'assistant');
+                    updateCart();
+                }
+            })
+            .catch(error => {
+                removeMessage(loadingId);
+                addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                console.error('Error:', error);
+            });
+        }
+
+        function addMessage(text, sender, className = '') {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            const messageId = 'msg-' + Date.now();
+            
+            messageDiv.id = messageId;
+            messageDiv.className = `message ${sender}-message ${className}`;
+            messageDiv.textContent = text;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return messageId;
+        }
+
+        function removeMessage(messageId) {
+            const message = document.getElementById(messageId);
+            if (message) {
+                message.remove();
+            }
+        }
+
+        function updateCart() {
+            fetch('/api/cart')
+            .then(response => response.json())
+            .then(data => {
+                const cartCount = document.getElementById('cartCount');
+                const cartItems = document.getElementById('cartItems');
+                const cartTotal = document.getElementById('cartTotal');
+                
+                cartCount.textContent = data.count;
+                cartTotal.textContent = `Total: $${data.total.toFixed(2)}`;
+                
+                if (data.cart.length === 0) {
+                    cartItems.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;">Your cart is empty</div>';
+                } else {
+                    cartItems.innerHTML = data.cart.map(item => `
+                        <div class="cart-item">
+                            <span>${item.name}</span>
+                            <span>$${item.price}</span>
+                        </div>
+                    `).join('');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating cart:', error);
+            });
+        }
+
+        function clearCart() {
+            fetch('/api/cart/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateCart();
+                addMessage('Your cart has been cleared.', 'assistant');
+            })
+            .catch(error => {
+                console.error('Error clearing cart:', error);
+            });
+        }
+
+        async function toggleVoiceRecording() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        await sendVoiceMessage(audioBlob);
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    voiceBtn.classList.add('recording');
+                    voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
+                    
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    addMessage('Sorry, I couldn\'t access your microphone. Please check your permissions.', 'assistant');
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            }
+        }
+
+        async function sendVoiceMessage(audioBlob) {
+            // For now, we'll simulate voice input with a placeholder
+            // In a real implementation, you'd send the audio to a speech-to-text service
+            addMessage('Voice input detected (speech-to-text not implemented in this demo)', 'user');
+            addMessage('Please use text input for now. Voice functionality requires additional speech-to-text integration.', 'assistant');
+        }
+    </script>
+</body>
+</html> 

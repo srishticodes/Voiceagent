@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Waltz Voice Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --background-color: #f4f7f9;
+            --surface-color: #ffffff;
+            --text-color: #333;
+            --user-msg-bg: #667eea;
+            --assistant-msg-bg: #e9ecef;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #main-container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--surface-color);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: #fff;
+            padding: 25px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        .header p {
+            margin: 5px 0 0;
+            opacity: 0.9;
+        }
+        #content-area {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+        #login-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        #login-section select, #login-section button {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+        }
+        #login-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            cursor: pointer;
+        }
+        #logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border-color: #dc3545;
+            cursor: pointer;
+            margin-left: auto;
+        }
+        #login-status {
+            font-weight: 500;
+        }
+        #chat-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #history {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 15px;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .msg {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 85%;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        .user {
+            background: var(--user-msg-bg);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .waltz {
+            background: var(--assistant-msg-bg);
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .loading {
+            align-self: flex-start;
+            color: #888;
+        }
+        #input-area {
+            display: flex;
+            gap: 10px;
+        }
+        #textInput {
+            flex-grow: 1;
+            padding: 12px;
+            border-radius: 25px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+            outline: none;
+        }
+        #textInput:focus {
+            border-color: var(--primary-color);
+        }
+        .icon-btn {
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        .icon-btn:hover {
+            transform: scale(1.1);
+        }
+        #sendBtn {
+            background-color: var(--secondary-color);
+        }
+        #recordBtn {
+            background-color: var(--primary-color);
+        }
+        #recordBtn.recording {
+            background-color: #28a745;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+        #audioReply {
+            width: 100%;
+            margin-top: 10px;
+        }
+        #data-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+        }
+        .panel h2 {
+            margin: 0 0 10px;
+            font-size: 1.2rem;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 8px;
+        }
+        .cart-item, .order {
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .cart-total {
+            font-weight: bold;
+            text-align: right;
+            margin-top: 10px;
+        }
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+        }
+        .order-items {
+            font-size: 0.9rem;
+            margin-left: 15px;
+            margin-top: 5px;
+        }
+        .empty-state {
+            color: #888;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 0; }
+            #main-container { border-radius: 0; }
+            #data-panels { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.5rem; }
+            #history { height: 250px; }
+            .panel { height: 200px; }
+        }
+    </style>
+</head>
+<body>
+<div id="main-container">
+    <div class="header">
+        <h1>Waltz AI Assistant</h1>
+        <p>Your AI-Powered Shopping Companion</p>
+    </div>
+
+    <div id="content-area">
+        <div id="login-section">
+            <div id="login-controls">
+                <label for="userId">Login:</label>
+                <select id="userId">
+                    <option value="">Select User</option>
+                    <option value="U001">John Doe (U001)</option>
+                    <option value="U002">Jane Smith (U002)</option>
+                </select>
+                <button id="login-btn" onclick="login()">Login</button>
+            </div>
+            <div id="user-display" style="display:none;">
+                <span id="login-status"></span>
+                <button id="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div id="chat-wrapper">
+            <div id="history">
+                <div class="msg waltz">Hello! Please log in to start shopping.</div>
+            </div>
+            <audio id="audioReply" controls style="display:none;"></audio>
+            <div id="input-area">
+                <input id="textInput" type="text" placeholder="Type your message..." disabled>
+                <button id="recordBtn" class="icon-btn" onclick="toggleRecord()" disabled><i class="fa-solid fa-microphone"></i></button>
+                <button id="sendBtn" class="icon-btn" onclick="sendText()" disabled><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <div id="data-panels">
+            <div id="cart" class="panel">
+                <h2>Shopping Cart (<span id="cartCount">0</span>)</h2>
+                <div id="cartItems"><div class="empty-state">Cart is empty</div></div>
+                <div id="cartTotal"></div>
+            </div>
+            <div id="orders" class="panel">
+                <h2>Order History</h2>
+                <div id="orderList"><div class="empty-state">No orders found</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const historyDiv = document.getElementById('history');
+const audioReply = document.getElementById('audioReply');
+const textInput = document.getElementById('textInput');
+const recordBtn = document.getElementById('recordBtn');
+const sendBtn = document.getElementById('sendBtn');
+const loginControls = document.getElementById('login-controls');
+const userDisplay = document.getElementById('user-display');
+const loginStatus = document.getElementById('login-status');
+
+let isRecording = false;
+let mediaRecorder, audioChunks = [];
+
+function setInteractionDisabled(disabled) {
+    textInput.disabled = disabled;
+    recordBtn.disabled = disabled;
+    sendBtn.disabled = disabled;
+}
+
+function appendMsg(text, who, id = null) {
+    let div = document.createElement('div');
+    if (id) div.id = id;
+    div.className = `msg ${who}`;
+    div.textContent = text;
+    historyDiv.appendChild(div);
+    historyDiv.scrollTop = historyDiv.scrollHeight;
+    return id;
+}
+
+function sendText() {
+    let msg = textInput.value.trim();
+    if (!msg) return;
+    appendMsg(msg, 'user');
+    textInput.value = '';
+    
+    let loadingId = 'loading-' + Date.now();
+    appendMsg('Waltz is thinking...', 'waltz loading', loadingId);
+
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg})
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById(loadingId)?.remove();
+        appendMsg(data.response, 'waltz');
+        if (data.audio) {
+            audioReply.src = data.audio;
+            audioReply.style.display = 'block';
+            audioReply.play();
+        }
+        updateCart();
+        updateOrders();
+    })
+    .catch(() => {
+        document.getElementById(loadingId)?.remove();
+        appendMsg('An error occurred. Please try again.', 'waltz');
+    });
+}
+
+function toggleRecord() {
+    if (!isRecording) {
+        navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            
+            mediaRecorder.onstop = () => {
+                let audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                let fd = new FormData();
+                fd.append('audio', audioBlob, 'recording.wav');
+
+                let loadingId = 'loading-' + Date.now();
+                appendMsg('Transcribing and processing...', 'waltz loading', loadingId);
+
+                fetch('/api/voice', { method: 'POST', body: fd })
+                .then(r => r.json()).then(data => {
+                    document.getElementById(loadingId)?.remove();
+                    if(data.error) {
+                        appendMsg(data.error, 'waltz');
+                        return;
+                    }
+                    appendMsg(data.query, 'user');
+                    appendMsg(data.response, 'waltz');
+                    if (data.audio) {
+                        audioReply.src = data.audio;
+                        audioReply.style.display = 'block';
+                        audioReply.play();
+                    }
+                    updateCart();
+                    updateOrders();
+                })
+                .catch(() => {
+                    document.getElementById(loadingId)?.remove();
+                    appendMsg('An error occurred. Please try again.', 'waltz');
+                });
+            };
+            mediaRecorder.start();
+            recordBtn.classList.add('recording');
+            recordBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            isRecording = true;
+        });
+    } else {
+        mediaRecorder.stop();
+        recordBtn.classList.remove('recording');
+        recordBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        isRecording = false;
+    }
+}
+
+function login() {
+    let userId = document.getElementById('userId').value;
+    if (!userId) { alert('Please select a user!'); return; }
+
+    fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: userId})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            loginStatus.textContent = 'Logged in as ' + data.name;
+            loginControls.style.display = 'none';
+            userDisplay.style.display = 'flex';
+            setInteractionDisabled(false);
+            historyDiv.innerHTML = '';
+            appendMsg('Hello! How can I help you today?', 'waltz');
+            updateCart();
+            updateOrders();
+        } else {
+            alert('Login failed: ' + data.error);
+        }
+    });
+}
+
+function logout() {
+    fetch('/api/logout', { method: 'POST' }).then(() => {
+        loginControls.style.display = 'flex';
+        userDisplay.style.display = 'none';
+        setInteractionDisabled(true);
+        historyDiv.innerHTML = '<div class="msg waltz">You have been logged out.</div>';
+        updateCart();
+        updateOrders();
+    });
+}
+
+function updateCart() {
+    fetch('/api/cart').then(r => r.json()).then(data => {
+        document.getElementById('cartCount').textContent = data.count;
+        const cartItemsDiv = document.getElementById('cartItems');
+        if (data.count > 0) {
+            let items = data.cart.map(item => `
+                <div class="cart-item">
+                    <span>${item.name} (x${item.quantity})</span>
+                    <span>₹${item.price.toFixed(2)}</span>
+                </div>`
+            ).join('');
+            cartItemsDiv.innerHTML = items;
+            document.getElementById('cartTotal').textContent = `Total: ₹${data.total.toFixed(2)}`;
+        } else {
+            cartItemsDiv.innerHTML = '<div class="empty-state">Cart is empty</div>';
+            document.getElementById('cartTotal').textContent = '';
+        }
+    });
+}
+
+function updateOrders() {
+    fetch('/api/orders').then(r => r.json()).then(data => {
+        const orderListDiv = document.getElementById('orderList');
+        if (data.orders && data.orders.length > 0) {
+            orderListDiv.innerHTML = data.orders.map(order => `
+                <div class="order">
+                    <div class="order-header">
+                        <span>${order.order_id}</span>
+                        <span>₹${order.total.toFixed(2)}</span>
+                    </div>
+                    <div>Date: ${order.date} | Status: ${order.status}</div>
+                    <div class="order-items">
+                        ${order.items.map(item => `<div>- ${item.product_name} (x${item.quantity})</div>`).join('')}
+                    </div>
+                </div>`
+            ).join('');
+        } else {
+            orderListDiv.innerHTML = '<div class="empty-state">No orders found</div>';
+        }
+    });
+}
+
+textInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendText();
+});
+</script>
+</body>
+</html> 

@@ -15,7 +15,7 @@ import threading
 import queue
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, Response, stream_template
-from langchain_ollama import OllamaEmbeddings, OllamaLLM
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -34,8 +34,7 @@ RECORD_SAMPLE_RATE = 16000
 TTS_SAMPLE_RATE = 24000
 CHUNK_SIZE = 1024
 
-# Mock user data is now replaced by CSV files
-# users.csv, user_addresses.csv, user_payment_methods.csv
+
 
 class VoiceManager:
     """Voice management with real-time capabilities"""
@@ -59,12 +58,19 @@ class VoiceManager:
         print(f"Speaking: {text[:50]}...")
         
         try:
-            # Check Google Cloud credentials - try multiple paths
-            cred_paths = [
+            # Check Google Cloud credentials - try GOOGLE_APPLICATION_CREDENTIALS first, then WALTZ_TTS_CREDENTIALS, then fallback paths
+            cred_paths = []
+            google_adc = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if google_adc:
+                cred_paths.append(google_adc)
+            custom_cred = os.environ.get("WALTZ_TTS_CREDENTIALS")
+            if custom_cred:
+                cred_paths.append(custom_cred)
+            cred_paths.extend([
                 "diptak_tts[1].json",
                 "diptak_tts.json", 
                 os.path.expanduser('~/.config/gcloud/application_default_credentials.json')
-            ]
+            ])
             
             cred_found = False
             for cred_path in cred_paths:
@@ -161,7 +167,7 @@ class VoiceManager:
             self.is_speaking = False
             print("Speech stopped")
 
-class WalmartAssistant:
+class WaltzAssistant:
     def __init__(self):
         self.setup_models()
         self.setup_vector_database()
@@ -185,23 +191,27 @@ class WalmartAssistant:
         
         # LLM
         try:
-            self.llm = OllamaLLM(model="gemma3:1b")
-            print("Ollama model loaded")
+            self.llm = ChatGoogleGenerativeAI(model="models/gemini-1.0-pro")
+            print("Google Gemini model loaded")
         except Exception as e:
-            print(f"Error loading Ollama model: {e}")
+            print(f"Error loading Gemini model: {e}")
             self.llm = None
-            
+
         # Embeddings
-        self.embeddings = OllamaEmbeddings(model="mxbai-embed-large")
-        print("Embeddings model loaded")
+        try:
+            self.embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+            print("Google Embeddings model loaded")
+        except Exception as e:
+            print(f"Error loading Google Embeddings: {e}")
+            self.embeddings = None
         
     def setup_vector_database(self):
-        """Setup Walmart product inventory database"""
+        """Setup Waltz product inventory database"""
         print("Setting up product inventory database...")
         
         # Load inventory
         try:
-            inventory_file = "walmart_inventory.csv"
+            inventory_file = "waltz_inventory.csv"
             if not os.path.exists(inventory_file):
                 print(f"Inventory file not found: {inventory_file}")
                 self.retriever = None
@@ -216,7 +226,7 @@ class WalmartAssistant:
             print(f"Found {len(in_stock_df)} in-stock products")
             
         except FileNotFoundError:
-            print("Inventory CSV file not found. Please ensure 'walmart_inventory.csv' exists.")
+            print("Inventory CSV file not found. Please ensure 'waltz_inventory.csv' exists.")
             self.retriever = None
             return
         except Exception as e:
@@ -225,7 +235,7 @@ class WalmartAssistant:
             return
         
         # Create vector database
-        db_location = "./walmart_inventory_db"
+        db_location = "./waltz_inventory_db"
         add_documents = not os.path.exists(db_location)
         
         if add_documents:
@@ -270,7 +280,7 @@ Search Terms: {product_name} {category} {description}
             
             # Create and populate vector store
             self.vector_store = Chroma(
-                collection_name="walmart_inventory",
+                collection_name="waltz_inventory",
                 persist_directory=db_location,
                 embedding_function=self.embeddings
             )
@@ -278,7 +288,7 @@ Search Terms: {product_name} {category} {description}
             print("Inventory database created")
         else:
             self.vector_store = Chroma(
-                collection_name="walmart_inventory",
+                collection_name="waltz_inventory",
                 persist_directory=db_location,
                 embedding_function=self.embeddings
             )
@@ -815,7 +825,7 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
         
         # Check stock before adding
         try:
-            inventory_df = pd.read_csv('walmart_inventory.csv', quoting=1)
+            inventory_df = pd.read_csv('waltz_inventory.csv', quoting=1)
             product_row = inventory_df[inventory_df['product_id'] == product_id]
             
             if product_row.empty or product_row.iloc[0]['stock_quantity'] <= 0:
@@ -1385,11 +1395,11 @@ Provide a helpful, conversational response that sounds natural when spoken aloud
             return "Sorry, I couldn't retrieve your order history. Please try again."
 
 # Create global assistant instance
-assistant = WalmartAssistant()
+assistant = WaltzAssistant()
 
 # Flask app for web interface
 app = Flask(__name__)
-app.secret_key = 'walmart_assistant_secret'
+app.secret_key = 'waltz_assistant_secret'
 
 @app.route('/')
 def index():
